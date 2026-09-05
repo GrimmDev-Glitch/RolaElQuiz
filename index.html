@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Adivina la Canción — Quiz musical</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="stage">
+
+  <!-- PANTALLA 1: LOGIN -->
+  <section id="screen-login" class="screen active">
+    <div class="disc disc--hero" aria-hidden="true">
+      <div class="disc__label"></div>
+    </div>
+    <h1 class="title">Adivina la Canción</h1>
+    <p class="subtitle">Conecta tu Spotify, elige tus canciones y pon a prueba a tus amigos.</p>
+    <button id="btn-login" class="btn btn--primary">Conectar con Spotify</button>
+    <p id="login-error" class="error hidden"></p>
+    <p class="fineprint">Solo quien organiza el juego necesita iniciar sesión. No hace falta Spotify Premium.</p>
+  </section>
+
+  <!-- PANTALLA 2: CONFIGURACIÓN -->
+  <section id="screen-setup" class="screen">
+    <h2 class="title title--sm">Prepara la partida</h2>
+
+    <div class="field-group">
+      <span class="field-label">Fuente de canciones</span>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-source="liked">Mis Me Gusta</button>
+        <button class="tab" data-source="playlist">Una playlist</button>
+      </div>
+
+      <div id="source-liked" class="source-panel active">
+        <p class="hint">Se usarán tus canciones guardadas ("Me Gusta") en Spotify.</p>
+      </div>
+
+      <div id="source-playlist" class="source-panel">
+        <select id="playlist-select" class="select">
+          <option value="">Cargando tus playlists…</option>
+        </select>
+        <p class="hint">Aquí también aparece cualquier Blend que hayas creado — se lee como una playlist normal.</p>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">Jugadores</span>
+      <div id="players-list" class="chips"></div>
+      <div class="add-player">
+        <input id="player-name-input" type="text" placeholder="Nombre del jugador" maxlength="20" />
+        <button id="btn-add-player" class="btn btn--ghost">Agregar</button>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-group field-group--inline">
+        <span class="field-label">Rondas</span>
+        <select id="rounds-select" class="select select--sm">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+        </select>
+      </div>
+      <div class="field-group field-group--inline">
+        <span class="field-label">Duración del fragmento</span>
+        <select id="snippet-select" class="select select--sm">
+          <option value="5">5 segundos</option>
+          <option value="10" selected>10 segundos</option>
+          <option value="15">15 segundos</option>
+          <option value="30">Canción completa (30s)</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="btn-start-quiz" class="btn btn--primary">Empezar partida</button>
+    <p id="setup-status" class="hint"></p>
+  </section>
+
+  <!-- PANTALLA 3: JUEGO -->
+  <section id="screen-game" class="screen">
+    <div class="game-topbar">
+      <span id="round-counter" class="round-counter">Ronda 1/10</span>
+      <button id="btn-quit-game" class="link-btn">Terminar</button>
+    </div>
+
+    <div class="disc-wrap">
+      <div id="disc" class="disc">
+        <img id="disc-art" class="disc__art hidden" alt="" />
+        <div class="disc__label"></div>
+      </div>
+    </div>
+
+    <div id="reveal-card" class="reveal-card hidden">
+      <p id="reveal-title" class="reveal-title"></p>
+      <p id="reveal-artist" class="reveal-artist"></p>
+    </div>
+
+    <div id="game-controls" class="game-controls">
+      <button id="btn-play-snippet" class="btn btn--primary btn--wide">▶ Reproducir fragmento</button>
+    </div>
+
+    <div id="score-controls" class="score-controls hidden">
+      <p class="field-label">¿Quién adivinó?</p>
+      <div id="score-players" class="chips chips--selectable"></div>
+      <button id="btn-confirm-round" class="btn btn--primary btn--wide">Siguiente canción</button>
+    </div>
+
+    <audio id="audio-player" preload="auto"></audio>
+  </section>
+
+  <!-- PANTALLA 4: RESULTADOS -->
+  <section id="screen-results" class="screen">
+    <h2 class="title title--sm">Resultados</h2>
+    <div id="results-list" class="results-list"></div>
+    <button id="btn-play-again" class="btn btn--primary">Jugar otra vez</button>
+    <button id="btn-back-setup" class="btn btn--ghost">Cambiar canciones</button>
+  </section>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
