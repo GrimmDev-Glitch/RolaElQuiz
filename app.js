@@ -6,7 +6,7 @@
       Redirect URI la URL exacta donde vayas a publicar esta
       página (ej: https://tu-app.netlify.app/), sin nada extra.
    ========================================================= */
-const CLIENT_ID = 'PON_AQUI_TU_CLIENT_ID';
+const CLIENT_ID = '0b5042ba77d74d2898f0c229ecffa3ea';
 
 const REDIRECT_URI = window.location.origin + window.location.pathname;
 const SCOPES = 'user-library-read playlist-read-private playlist-read-collaborative';
