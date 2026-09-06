@@ -59,12 +59,16 @@
       </div>
 
       <div id="source-playlist" class="source-panel">
-        <select id="playlist-select" class="select">
-          <option value="">Cargando tus playlists…</option>
-        </select>
+        <div class="row-inline">
+          <select id="playlist-select" class="select">
+            <option value="">Cargando tus playlists…</option>
+          </select>
+          <button id="btn-reload-playlists" class="btn btn--ghost btn--icon" title="Recargar lista">🔄</button>
+        </div>
+        <p id="playlist-count-status" class="hint"></p>
         <p class="hint">Aquí también aparece cualquier Blend que hayas creado — se lee como una playlist normal.</p>
 
-        <p class="hint" style="margin-top:14px;">¿No la ves en la lista, o es de otra cuenta? Pega el link aquí:</p>
+        <p class="hint" style="margin-top:14px;">¿No la ves en la lista, o es de otra cuenta? Pega el link aquí (debe ser pública):</p>
         <div class="add-player">
           <input id="playlist-url-input" type="text" placeholder="https://open.spotify.com/playlist/..." />
           <button id="btn-use-playlist-url" class="btn btn--ghost">Usar</button>
@@ -124,13 +128,30 @@
       </div>
     </div>
 
+    <div id="host-timer-wrap" class="timer-wrap hidden">
+      <div class="timer-bar-track"><div id="host-timer-bar" class="timer-bar-fill"></div></div>
+      <span id="host-timer-text" class="timer-text"></span>
+    </div>
+
+    <div class="volume-control">
+      <span>🔊</span>
+      <input id="host-volume" type="range" min="0" max="1" step="0.05" value="0.8" />
+    </div>
+
     <p id="host-game-status" class="hint" style="text-align:center;">Preparando…</p>
     <p id="host-answer-count" class="hint" style="text-align:center;"></p>
 
     <div id="host-reveal-card" class="reveal-card hidden">
       <p id="host-reveal-title" class="reveal-title"></p>
       <p id="host-reveal-artist" class="reveal-artist"></p>
-      <p class="field-label" style="align-self:center; margin-top:14px;">Leaderboard</p>
+
+      <p class="field-label" style="align-self:center; margin-top:14px;">Opciones de esta ronda</p>
+      <div id="host-reveal-options" class="answer-grid answer-grid--readonly"></div>
+
+      <p class="field-label" style="align-self:center; margin-top:14px;">Quién acertó</p>
+      <div id="host-round-answers" class="results-list results-list--compact"></div>
+
+      <p class="field-label" style="align-self:center; margin-top:14px;">Leaderboard general</p>
       <div id="host-round-leaderboard" class="results-list results-list--compact"></div>
     </div>
 
@@ -142,6 +163,7 @@
   <!-- PANTALLA: RESULTADOS (ANFITRIÓN) -->
   <section id="screen-host-results" class="screen">
     <h2 class="title title--sm">Resultados</h2>
+    <p id="host-winner-banner" class="winner-banner"></p>
     <div id="host-results-list" class="results-list"></div>
     <button id="btn-play-again-host" class="btn btn--primary btn--wide">Jugar otra vez (misma sala)</button>
     <button id="btn-new-setup-host" class="btn btn--ghost btn--wide">Nueva configuración</button>
@@ -172,6 +194,7 @@
     <p class="hint">Esperando a que el anfitrión empiece la partida…</p>
     <p class="field-label" style="align-self:flex-start;">Jugadores en la sala</p>
     <div id="player-lobby-list" class="chips"></div>
+    <button id="btn-leave-lobby" class="link-btn">Salir de la sala</button>
   </section>
 
   <!-- PANTALLA: JUEGO (VISTA JUGADOR) -->
@@ -182,6 +205,16 @@
       <div id="player-disc" class="disc">
         <div class="disc__label"></div>
       </div>
+    </div>
+
+    <div id="player-timer-wrap" class="timer-wrap hidden">
+      <div class="timer-bar-track"><div id="player-timer-bar" class="timer-bar-fill"></div></div>
+      <span id="player-timer-text" class="timer-text"></span>
+    </div>
+
+    <div class="volume-control">
+      <span>🔊</span>
+      <input id="player-volume" type="range" min="0" max="1" step="0.05" value="0.8" />
     </div>
 
     <p id="player-status-text" class="hint" style="text-align:center;">Prepárate…</p>
@@ -205,8 +238,10 @@
   <!-- PANTALLA: RESULTADOS (JUGADOR) -->
   <section id="screen-player-results" class="screen">
     <h2 class="title title--sm">Resultados</h2>
+    <p id="player-winner-banner" class="winner-banner"></p>
     <div id="player-results-list" class="results-list"></div>
-    <button id="btn-player-back-join" class="btn btn--ghost btn--wide">Volver a unirme</button>
+    <p class="hint">Quédate en esta sala, esperando a que el anfitrión mande la partida.</p>
+    <button id="btn-player-back-join" class="btn btn--ghost btn--wide">Salir de la sala</button>
   </section>
 
 </div>

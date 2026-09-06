@@ -26,12 +26,12 @@
         te da (apiKey, authDomain, databaseURL, projectId, etc.)
         y pégalo abajo en FIREBASE_CONFIG.
    ========================================================= */
-const CLIENT_ID = '0b5042ba77d74d2898f0c229ecffa3ea';
+const CLIENT_ID = 'PON_AQUI_TU_CLIENT_ID';
 const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyD3TGqbPWtlEU8lRK0PEOxfCCuL3Q1Cvs4',
-  authDomain: 'rolaelquiz.firebaseapp.com',
-  databaseURL: 'https://rolaelquiz-default-rtdb.firebaseio.com',
-  projectId: 'rolaelquiz',
+  apiKey: 'PON_AQUI_TU_API_KEY',
+  authDomain: 'PON_AQUI_TU_PROYECTO.firebaseapp.com',
+  databaseURL: 'https://PON_AQUI_TU_PROYECTO-default-rtdb.firebaseio.com',
+  projectId: 'PON_AQUI_TU_PROYECTO',
 };
 
 const REDIRECT_URI = window.location.origin + window.location.pathname;
@@ -60,25 +60,40 @@ let answered = false;
 let localSnippetTimer = null;
 let roundPlayAt = 0;
 let roundSnippetSecs = 10;
+let playerTimerInterval = null;
+let hostTimerInterval = null;
 
-const MAX_POINTS = 1000;
-const MIN_POINTS = 100;
-// Más puntos mientras más rápido respondas dentro del tiempo del
-// fragmento; 0 puntos si fallas o no alcanzas a responder.
-function computePoints(playAt, snippetSecs, answeredAt, correct) {
-  if (!correct) return 0;
-  const elapsed = Math.min(Math.max((answeredAt - playAt) / 1000, 0), snippetSecs);
-  const ratio = 1 - elapsed / snippetSecs;
-  return Math.round(MIN_POINTS + (MAX_POINTS - MIN_POINTS) * ratio);
+// Puntos por orden de acierto: quien responde bien primero se lleva más,
+// bajando de a 10 hasta un piso de 50. Fallar o no responder = 0.
+const RANK_POINTS_START = 100;
+const RANK_POINTS_STEP = 10;
+const RANK_POINTS_FLOOR = 50;
+function computeRankPoints(rank) {
+  return Math.max(RANK_POINTS_FLOOR, RANK_POINTS_START - rank * RANK_POINTS_STEP);
 }
-function renderLeaderboardInto(container, players, highlightId) {
+function winnerMessage(players) {
+  const vals = Object.values(players || {});
+  if (!vals.length) return '';
+  const topScore = Math.max(...vals.map(p => p.score || 0));
+  if (topScore <= 0) return '🎧 Nadie se llevó puntos esta vez — ¡a afinar el oído para la próxima!';
+  const winners = vals.filter(p => (p.score || 0) === topScore).map(p => p.name);
+  return winners.length === 1
+    ? `🏆 ¡Felicidades, ${winners[0]}, eres el más rolo!`
+    : `🏆 ¡Felicidades, ${winners.join(' y ')}, son los más rolos!`;
+}
+function renderLeaderboardInto(container, players, highlightId, roundAnswers) {
   const sorted = Object.entries(players || {}).sort((a, b) => (b[1].score || 0) - (a[1].score || 0));
   container.innerHTML = '';
   sorted.forEach(([pid, p], i) => {
     const row = document.createElement('div');
     row.className = 'result-row' + (pid === highlightId ? ' me' : '');
     const isMe = pid === highlightId ? ' (tú)' : '';
-    row.innerHTML = `<span class="name"><span class="rank">${i + 1}.</span> ${escapeHtml(p.name)}${isMe}</span><span class="score">${p.score || 0}</span>`;
+    let deltaHtml = '';
+    if (roundAnswers) {
+      const pts = (roundAnswers[pid] && roundAnswers[pid].points) || 0;
+      deltaHtml = `<span class="delta ${pts > 0 ? 'pos' : 'zero'}">+${pts}</span>`;
+    }
+    row.innerHTML = `<span class="name"><span class="rank">${i + 1}.</span> ${escapeHtml(p.name)}${isMe}</span><span class="score">${p.score || 0}${deltaHtml}</span>`;
     container.appendChild(row);
   });
 }
@@ -95,6 +110,8 @@ const loginError = document.getElementById('login-error');
 const btnLogout = document.getElementById('btn-logout');
 const tabs = document.querySelectorAll('.tab');
 const playlistSelect = document.getElementById('playlist-select');
+const btnReloadPlaylists = document.getElementById('btn-reload-playlists');
+const playlistCountStatus = document.getElementById('playlist-count-status');
 const playlistUrlInput = document.getElementById('playlist-url-input');
 const btnUsePlaylistUrl = document.getElementById('btn-use-playlist-url');
 const playlistUrlStatus = document.getElementById('playlist-url-status');
@@ -118,10 +135,17 @@ const hostRevealCard = document.getElementById('host-reveal-card');
 const hostRevealTitle = document.getElementById('host-reveal-title');
 const hostRevealArtist = document.getElementById('host-reveal-artist');
 const hostRoundLeaderboard = document.getElementById('host-round-leaderboard');
+const hostRevealOptions = document.getElementById('host-reveal-options');
+const hostRoundAnswers = document.getElementById('host-round-answers');
+const hostTimerWrap = document.getElementById('host-timer-wrap');
+const hostTimerBar = document.getElementById('host-timer-bar');
+const hostTimerText = document.getElementById('host-timer-text');
+const hostVolumeSlider = document.getElementById('host-volume');
 const btnNextRound = document.getElementById('btn-next-round');
 const hostAudioPlayer = document.getElementById('host-audio-player');
 
 const hostResultsList = document.getElementById('host-results-list');
+const hostWinnerBanner = document.getElementById('host-winner-banner');
 const btnPlayAgainHost = document.getElementById('btn-play-again-host');
 const btnNewSetupHost = document.getElementById('btn-new-setup-host');
 
@@ -131,10 +155,15 @@ const btnJoinRoom = document.getElementById('btn-join-room');
 const joinError = document.getElementById('join-error');
 
 const playerLobbyList = document.getElementById('player-lobby-list');
+const btnLeaveLobby = document.getElementById('btn-leave-lobby');
 
 const playerRoundCounter = document.getElementById('player-round-counter');
 const playerStatusText = document.getElementById('player-status-text');
 const btnManualPlay = document.getElementById('btn-manual-play');
+const playerTimerWrap = document.getElementById('player-timer-wrap');
+const playerTimerBar = document.getElementById('player-timer-bar');
+const playerTimerText = document.getElementById('player-timer-text');
+const playerVolumeSlider = document.getElementById('player-volume');
 const playerAnswerGrid = document.getElementById('player-answer-grid');
 const playerReveal = document.getElementById('player-reveal');
 const playerRevealBanner = document.getElementById('player-reveal-banner');
@@ -146,6 +175,7 @@ const playerRoundLeaderboard = document.getElementById('player-round-leaderboard
 const audioPlayer = document.getElementById('audio-player');
 
 const playerResultsList = document.getElementById('player-results-list');
+const playerWinnerBanner = document.getElementById('player-winner-banner');
 const btnPlayerBackJoin = document.getElementById('btn-player-back-join');
 
 // ---------- Utilidades ----------
@@ -169,6 +199,12 @@ function shuffle(arr) {
 function getServerNow() {
   return Date.now() + serverTimeOffset;
 }
+// Control de volumen: se aplica de inmediato y se mantiene entre rondas
+// (cambiar audioPlayer.src no resetea audioPlayer.volume).
+playerVolumeSlider.oninput = () => { audioPlayer.volume = parseFloat(playerVolumeSlider.value); };
+audioPlayer.volume = parseFloat(playerVolumeSlider.value);
+hostVolumeSlider.oninput = () => { hostAudioPlayer.volume = parseFloat(hostVolumeSlider.value); };
+hostAudioPlayer.volume = parseFloat(hostVolumeSlider.value);
 function showGlobalError(msg) {
   const el = document.getElementById('global-error-banner');
   el.textContent = '⚠️ ' + msg;
@@ -347,6 +383,7 @@ async function spotifyGet(url) {
   return res.json();
 }
 function describeSpotifyError(e) {
+  if (e && e.customMessage) return e.message;
   if (e && e.status === 401) {
     return 'Tu sesión de Spotify expiró. Dale a "Cerrar sesión" y vuelve a conectar.';
   }
@@ -373,11 +410,13 @@ async function fetchAllPages(url) {
   return items;
 }
 async function loadPlaylists() {
+  playlistCountStatus.textContent = 'Buscando tus playlists…';
   try {
     const items = await fetchAllPages('https://api.spotify.com/v1/me/playlists?limit=50');
     playlistSelect.innerHTML = '';
     if (!items.length) {
       playlistSelect.innerHTML = '<option value="">No se encontraron playlists</option>';
+      playlistCountStatus.textContent = 'No se encontró ninguna playlist en esta cuenta.';
       return;
     }
     items.forEach(p => {
@@ -386,9 +425,11 @@ async function loadPlaylists() {
       opt.textContent = `${p.name} (${p.tracks.total})`;
       playlistSelect.appendChild(opt);
     });
+    playlistCountStatus.textContent = `Se encontraron ${items.length} playlist(s). ¿No ves la que buscas? Dale a 🔄 para recargar, o pégala manualmente abajo (debe ser pública si no es tuya).`;
   } catch (e) {
     console.error(e);
     playlistSelect.innerHTML = '<option value="">Error cargando playlists</option>';
+    playlistCountStatus.textContent = '';
     setupStatus.textContent = describeSpotifyError(e);
   }
 }
@@ -411,8 +452,9 @@ btnUsePlaylistUrl.onclick = () => {
     return;
   }
   manualPlaylistId = id;
-  playlistUrlStatus.textContent = 'Playlist lista para usar (se prioriza sobre la lista de arriba).';
+  playlistUrlStatus.textContent = 'Playlist lista para usar (se prioriza sobre la lista de arriba). Debe ser pública si no es tuya, o Spotify la rechazará con un error 403.';
 };
+btnReloadPlaylists.onclick = () => loadPlaylists();
 function normalizeTrack(t) {
   if (!t || !t.id || !t.name) return null;
   return {
@@ -429,10 +471,25 @@ async function fetchSourcePool() {
   }
   const playlistId = manualPlaylistId || playlistSelect.value;
   const fields = encodeURIComponent('items(track(id,name,artists(name),album(images))),next');
-  const items = await fetchAllPages(
-    `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=${fields}`
-  );
-  return items.map(i => i.track).filter(Boolean);
+  try {
+    const items = await fetchAllPages(
+      `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=${fields}`
+    );
+    return items.map(i => i.track).filter(Boolean);
+  } catch (e) {
+    if (e && e.status === 403) {
+      const isManual = !!manualPlaylistId;
+      const err = new Error(
+        isManual
+          ? 'No se pudo leer esa playlist (403). Esto casi siempre pasa porque la playlist es privada o no es tuya: Spotify solo deja leer canciones de playlists PÚBLICAS ajenas, o de cualquiera de las tuyas (privada o pública). Si es un Blend, revisa que su link sea realmente público (ábrelo en una ventana de incógnito sin sesión iniciada para comprobarlo); si no, mejor elígelo directo de la lista desplegable "Mis playlists" en vez de pegar el link.'
+          : 'No se pudo leer esa playlist (403), lo cual es raro tratándose de una playlist tuya de la lista desplegable. Prueba recargar la lista (🔄) o cerrar sesión y volver a conectar tu cuenta.'
+      );
+      err.status = 403;
+      err.customMessage = true;
+      throw err;
+    }
+    throw e;
+  }
 }
 
 // ---------- Preview de audio vía iTunes Search (JSONP) ----------
@@ -478,12 +535,19 @@ tabs.forEach(tab => {
 // ---------- Construcción de rondas (multiple choice) ----------
 function buildRoundsFromPool() {
   const tracks = shuffle(previewPool).slice(0, roundsCount);
+  // Reparte mejor las opciones incorrectas: prioriza las canciones que
+  // menos se han usado como distractor en rondas anteriores, para no
+  // repetir siempre las mismas 3-4 opciones cuando el pool es chico.
+  const usageCount = new Map(previewPool.map(t => [t.id, 0]));
   const rounds = {};
   tracks.forEach((track, i) => {
     const others = previewPool.filter(t => t.id !== track.id && t.name !== track.name);
-    let distractors = shuffle(others).slice(0, 3).map(t => t.name);
-    while (distractors.length < 3) distractors.push('(otra canción)');
-    const options = shuffle([track.name, ...distractors]);
+    const ranked = shuffle(others).sort((a, b) => (usageCount.get(a.id) || 0) - (usageCount.get(b.id) || 0));
+    const distractorTracks = ranked.slice(0, 3);
+    distractorTracks.forEach(t => usageCount.set(t.id, (usageCount.get(t.id) || 0) + 1));
+    let names = distractorTracks.map(t => t.name);
+    while (names.length < 3) names.push('(otra canción)');
+    const options = shuffle([track.name, ...names]);
     const correctIndex = options.indexOf(track.name);
     rounds[i] = {
       trackName: track.name,
@@ -535,7 +599,7 @@ btnCreateRoom.onclick = async () => {
     }
     normalized = shuffle(normalized);
 
-    const target = Math.max(roundsCount * 2, Math.min(normalized.length, 30));
+    const target = Math.max(roundsCount * 3, Math.min(normalized.length, 40));
     previewPool = [];
     setupStatus.textContent = `Buscando audio: 0/${target}`;
     for (const track of normalized) {
@@ -599,6 +663,7 @@ function renderHostGame(room) {
   const totalPlayers = Object.keys(room.players || {}).length;
   const answers = round.answers || {};
   const answeredCount = Object.keys(answers).length;
+  const snippetSecs = snippetLengthFromRoom(room);
 
   if (room.status === 'playing') {
     hostDisc.classList.add('spinning');
@@ -611,18 +676,57 @@ function renderHostGame(room) {
       lastPlayedRoundHost = idx;
       const delay = Math.max(0, room.playAt - getServerNow());
       hostAudioPlayer.src = round.previewUrl;
-      setTimeout(() => { hostAudioPlayer.currentTime = 0; hostAudioPlayer.play().catch(() => {}); }, delay);
-      setTimeout(() => { hostAudioPlayer.pause(); }, delay + snippetLengthFromRoom(room) * 1000);
+      hostTimerWrap.classList.add('hidden');
+      clearInterval(hostTimerInterval);
+      setTimeout(() => {
+        hostAudioPlayer.currentTime = 0;
+        hostAudioPlayer.play().catch(() => {});
+        hostTimerWrap.classList.remove('hidden');
+        const endAt = room.playAt + snippetSecs * 1000;
+        hostTimerInterval = setInterval(() => {
+          const remaining = Math.max(0, (endAt - getServerNow()) / 1000);
+          hostTimerBar.style.width = Math.max(0, (remaining / snippetSecs) * 100) + '%';
+          hostTimerBar.classList.toggle('urgent', remaining <= 3);
+          hostTimerText.textContent = Math.ceil(remaining) + 's';
+          if (remaining <= 0) clearInterval(hostTimerInterval);
+        }, 100);
+      }, delay);
+      setTimeout(() => { hostAudioPlayer.pause(); clearInterval(hostTimerInterval); hostTimerWrap.classList.add('hidden'); }, delay + snippetSecs * 1000);
     }
   } else if (room.status === 'reveal') {
     hostDisc.classList.remove('spinning');
     hostAudioPlayer.pause();
+    clearInterval(hostTimerInterval);
+    hostTimerWrap.classList.add('hidden');
     if (round.trackImage) { hostDiscArt.src = round.trackImage; hostDiscArt.classList.remove('hidden'); }
     hostGameStatus.textContent = '';
     hostAnswerCount.textContent = `${answeredCount}/${totalPlayers} respondieron esta ronda`;
     hostRevealTitle.textContent = round.trackName;
     hostRevealArtist.textContent = round.trackArtist;
-    renderLeaderboardInto(hostRoundLeaderboard, room.players || {}, null);
+
+    hostRevealOptions.innerHTML = '';
+    round.options.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'answer-btn' + (i === round.correctIndex ? ' correct' : '');
+      btn.textContent = opt;
+      btn.disabled = true;
+      hostRevealOptions.appendChild(btn);
+    });
+
+    hostRoundAnswers.innerHTML = '';
+    const rows = Object.entries(room.players || {}).map(([pid, p]) => {
+      const a = answers[pid];
+      return { name: p.name, answered: !!a, correct: !!(a && a.correct), points: (a && a.points) || 0 };
+    }).sort((a, b) => b.points - a.points);
+    rows.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'result-row';
+      const icon = r.correct ? '✅' : (r.answered ? '❌' : '⌛');
+      row.innerHTML = `<span class="name">${icon} ${escapeHtml(r.name)}</span><span class="delta ${r.points > 0 ? 'pos' : 'zero'}">+${r.points}</span>`;
+      hostRoundAnswers.appendChild(row);
+    });
+
+    renderLeaderboardInto(hostRoundLeaderboard, room.players || {}, null, answers);
     hostRevealCard.classList.remove('hidden');
     btnNextRound.classList.remove('hidden');
     btnNextRound.textContent = (idx + 1 >= room.settings.roundsCount) ? 'Ver resultados' : 'Siguiente canción';
@@ -633,6 +737,7 @@ function snippetLengthFromRoom(room) {
 }
 function renderHostResults(room) {
   const players = room.players || {};
+  hostWinnerBanner.textContent = winnerMessage(players);
   const sorted = Object.values(players).sort((a, b) => (b.score || 0) - (a.score || 0));
   const topScore = sorted.length ? (sorted[0].score || 0) : 0;
   hostResultsList.innerHTML = '';
@@ -683,12 +788,22 @@ async function finalizeRound(index) {
     const answers = answersSnap.val() || {};
     const playersSnap = await roomRef.child('players').once('value');
     const playersVal = playersSnap.val() || {};
+    // Orden por velocidad: quien respondió correcto más rápido se lleva
+    // más puntos (100, 90, 80… hasta un piso de 50). Fallar o no
+    // responder = 0.
+    const correctEntries = Object.entries(answers)
+      .filter(([, a]) => a && a.correct)
+      .sort((a, b) => (a[1].answeredAt || 0) - (b[1].answeredAt || 0));
     const updates = {};
+    correctEntries.forEach(([pid], rank) => {
+      const pts = computeRankPoints(rank);
+      updates['rounds/' + index + '/answers/' + pid + '/points'] = pts;
+      const cur = (playersVal[pid] && playersVal[pid].score) || 0;
+      updates['players/' + pid + '/score'] = cur + pts;
+    });
     Object.entries(answers).forEach(([pid, a]) => {
-      const pts = (a && typeof a.points === 'number') ? a.points : 0;
-      if (pts > 0) {
-        const cur = (playersVal[pid] && playersVal[pid].score) || 0;
-        updates['players/' + pid + '/score'] = cur + pts;
+      if (!a || !a.correct) {
+        updates['rounds/' + index + '/answers/' + pid + '/points'] = 0;
       }
     });
     updates['status'] = 'reveal';
@@ -839,6 +954,8 @@ function setupPlayerRound(room, index) {
   playerAnswerGrid.classList.remove('hidden');
   playerAnswerGrid.innerHTML = '';
   btnManualPlay.classList.add('hidden');
+  playerTimerWrap.classList.add('hidden');
+  clearInterval(playerTimerInterval);
   playerStatusText.textContent = 'Prepárate…';
 
   round.options.forEach((opt, i) => {
@@ -862,8 +979,22 @@ function setupPlayerRound(room, index) {
     playerStatusText.textContent = '🔊 ¡Escucha con atención!';
     audioPlayer.currentTime = 0;
     audioPlayer.play().catch(() => { btnManualPlay.classList.remove('hidden'); });
+
+    playerTimerWrap.classList.remove('hidden');
+    const endAt = room.playAt + snippetSecs * 1000;
+    clearInterval(playerTimerInterval);
+    playerTimerInterval = setInterval(() => {
+      const remaining = Math.max(0, (endAt - getServerNow()) / 1000);
+      playerTimerBar.style.width = Math.max(0, (remaining / snippetSecs) * 100) + '%';
+      playerTimerBar.classList.toggle('urgent', remaining <= 3);
+      playerTimerText.textContent = Math.ceil(remaining) + 's';
+      if (remaining <= 0) clearInterval(playerTimerInterval);
+    }, 100);
+
     localSnippetTimer = setTimeout(() => {
       audioPlayer.pause();
+      clearInterval(playerTimerInterval);
+      playerTimerWrap.classList.add('hidden');
       lockAnswerButtons();
       if (!answered) playerStatusText.textContent = 'Tiempo agotado, esperando al anfitrión…';
     }, snippetSecs * 1000);
@@ -882,11 +1013,10 @@ function submitAnswer(index, optionIndex, correctIndex, btnEl) {
   lockAnswerButtons(optionIndex);
   const correct = optionIndex === correctIndex;
   const answeredAt = getServerNow();
-  const points = computePoints(roundPlayAt, roundSnippetSecs, answeredAt, correct);
   playerStatusText.textContent = correct
-    ? `¡Correcto! +${points} pts. Esperando a los demás…`
+    ? '¡Correcto! Esperando a los demás…'
     : 'Respuesta enviada. Esperando a los demás…';
-  roomRef.child(`rounds/${index}/answers/${playerId}`).set({ optionIndex, correct, points, answeredAt, name: playerName });
+  roomRef.child(`rounds/${index}/answers/${playerId}`).set({ optionIndex, correct, answeredAt, name: playerName });
 }
 function showPlayerReveal(room, index) {
   const round = room.rounds[index];
@@ -904,10 +1034,11 @@ function showPlayerReveal(room, index) {
   } else {
     playerRevealArt.classList.add('hidden');
   }
-  renderLeaderboardInto(playerRoundLeaderboard, room.players || {}, playerId);
+  renderLeaderboardInto(playerRoundLeaderboard, room.players || {}, playerId, round.answers || {});
 }
 function renderPlayerResults(room) {
   const players = room.players || {};
+  playerWinnerBanner.textContent = winnerMessage(players);
   const sorted = Object.entries(players).sort((a, b) => (b[1].score || 0) - (a[1].score || 0));
   const topScore = sorted.length ? (sorted[0][1].score || 0) : 0;
   playerResultsList.innerHTML = '';
@@ -951,12 +1082,14 @@ function listenAsPlayer() {
     }
   });
 }
-btnPlayerBackJoin.onclick = () => {
+function leaveRoom() {
   if (roomRef) roomRef.off();
   roomRef = null;
   currentRoomCode = null;
   showScreen('player-join');
-};
+}
+btnPlayerBackJoin.onclick = leaveRoom;
+btnLeaveLobby.onclick = leaveRoom;
 
 // ---------- Navegación de rol ----------
 btnRoleHost.onclick = () => showScreen('login');

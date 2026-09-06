@@ -107,10 +107,34 @@ actualizar también el Redirect URI en el Dashboard de Spotify.
 1. Abre el mismo link, elige "Soy jugador".
 2. Escribe el código de la sala y su nombre.
 3. Cuando el anfitrión empieza, el fragmento suena directo en su
-   propio dispositivo y aparecen 4 opciones para tocar — la más
-   rápida en marcar bien gana el punto de esa ronda.
+   propio dispositivo (con control de volumen y un contador de
+   tiempo) y aparecen 4 opciones para tocar.
 4. Si el navegador no deja sonar el audio automáticamente, aparece
    un botón "¿No escuchas nada? Toca aquí".
+5. Al terminar cada ronda ve si acertó, cuántos puntos ganó y el
+   leaderboard. Puede quedarse en la sala entre partidas — no hace
+   falta volver a escribir el código si el anfitrión da "Jugar otra
+   vez"; para irse de verdad está el botón "Salir de la sala".
+
+## Puntaje
+
+Por cada ronda, quienes responden correcto se ordenan por qué tan
+rápido contestaron (no por tiempo absoluto, sino por quién fue
+primero, segundo, tercero...):
+
+| Orden en acertar | Puntos |
+|---|---|
+| 1º | 100 |
+| 2º | 90 |
+| 3º | 80 |
+| 4º | 70 |
+| 5º | 60 |
+| 6º en adelante | 50 |
+
+Fallar la respuesta o no alcanzar a responder da 0 puntos esa ronda.
+El anfitrión es quien calcula esto al cerrar cada ronda (no cada
+jugador por su cuenta), así que no depende de que el reloj de cada
+celular esté perfectamente sincronizado.
 
 ## Cosas a tener en cuenta
 
@@ -132,6 +156,22 @@ actualizar también el Redirect URI en el Dashboard de Spotify.
   su link directamente en el campo manual.
 
 ## Solución de problemas
+
+**Creé una playlist y no aparece en la lista desplegable**
+
+Le agregué un botón 🔄 al lado de la lista para recargarla sin tener
+que reconectar todo, y un texto que muestra cuántas playlists
+encontró. Si sigue sin aparecer:
+
+- Confirma que iniciaste sesión con la cuenta de Spotify donde
+  realmente está esa playlist (puede que tengas más de una cuenta).
+- Dale a 🔄 — Spotify a veces tarda un poco en reflejar una playlist
+  recién creada.
+- Como alternativa que siempre funciona: pégala manualmente con su
+  link en el campo de abajo del selector.
+- Si nada de esto funciona, prueba "Cerrar sesión" y volver a
+  conectar — a veces refresca los permisos.
+
 
 **"Error cargando playlists" / mensajes de error al crear la sala**
 
@@ -162,6 +202,19 @@ comunes:
 - **Demasiadas solicitudes (429):** espera unos segundos y reintenta.
 - **Playlist vacía o sin audio suficiente:** prueba con otra
   playlist; hacen falta al menos 4 canciones con preview.
+- **403 justo al pegar el link de una playlist y darle "Crear
+  sala", incluso con TU PROPIA cuenta de anfitrión:** esto es un
+  problema distinto al de arriba (el de "User Management" es solo
+  quien pueda *iniciar sesión*, no aplica al dueño de la app). Aquí
+  la causa casi segura es que **la playlist es privada o no es
+  tuya** — Spotify solo deja leer las canciones de playlists
+  públicas ajenas, o de cualquiera tuya (privada o pública). Si es
+  un Blend, comprueba que su link sea realmente público abriéndolo
+  en una ventana de incógnito sin sesión iniciada; si no carga ahí,
+  Spotify tampoco lo va a dejar leer por la API. Mejor alternativa:
+  elígela directo de la lista desplegable "Mis playlists" en vez de
+  pegar el link — esa lista sí incluye tus playlists privadas y
+  Blends propios.
 
 **"Falta configurar Firebase en app.js"**
 

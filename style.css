@@ -341,3 +341,49 @@ body {
   font-weight: 600;
   margin-bottom: 4px;
 }
+
+/* Timer de la ronda */
+.timer-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.timer-bar-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 6px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.timer-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--gold);
+  transition: width 0.2s linear, background 0.2s linear;
+}
+.timer-bar-fill.urgent { background: var(--coral); }
+.timer-text { font-weight: 700; font-size: 0.85rem; color: var(--text-muted); }
+
+/* Control de volumen */
+.volume-control { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 220px; align-self: center; }
+.volume-control input[type="range"] { flex: 1; accent-color: var(--gold); }
+
+/* Fila con select + botón recargar */
+.row-inline { display: flex; gap: 8px; align-items: center; }
+.row-inline .select { flex: 1; }
+.btn--icon { padding: 8px 12px; flex-shrink: 0; }
+
+/* Opciones de solo lectura (revelado del anfitrión) */
+.answer-grid--readonly .answer-btn { cursor: default; }
+
+/* Delta de puntos por ronda dentro del leaderboard */
+.delta { font-weight: 700; font-size: 0.8rem; margin-left: 8px; }
+.delta.pos { color: #6FCF97; }
+.delta.zero { color: var(--coral); }
+
+/* Banner de ganador */
+.winner-banner {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--gold);
+  margin: 0 0 6px 0;
+}
