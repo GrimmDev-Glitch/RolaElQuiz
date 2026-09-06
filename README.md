@@ -27,7 +27,9 @@ La sincronización entre pantallas usa Firebase Realtime Database
    Spotify (no solo unirse como jugador), ve a **Settings → User
    Management** y agrega su correo ahí — las apps nuevas de Spotify
    quedan en "Development mode" y solo dejan entrar a las cuentas
-   que agregues a mano (hasta 25).
+   que agregues a mano (Spotify ha ido bajando este límite con el
+   tiempo — revisa el número exacto que te muestre tu propio
+   dashboard).
 
 ## Paso 2: crear tu proyecto de Firebase (una sola vez, gratis)
 
@@ -139,8 +141,24 @@ comunes:
 - **Sesión expirada (401):** el token dura ~1 hora. Dale a "Cerrar
   sesión" y vuelve a conectar.
 - **Acceso bloqueado (403), la más probable si un amigo se loguea
-  como anfitrión con su propia cuenta:** agrégalo en el Dashboard de
-  Spotify → tu app → **Settings → User Management** (ver Paso 1.7).
+  como anfitrión con su propia cuenta:** este es el error más
+  confuso de Spotify porque **agregar el correo no siempre lo
+  arregla de inmediato**. Es un problema conocido y documentado por
+  muchos desarrolladores. Antes de rendirte, revisa en este orden:
+  1. Que agregaste el **correo exacto** de la cuenta de Spotify de
+     esa persona (no su nombre de usuario ni su nombre para
+     mostrar) en Dashboard → tu app → **Settings → User Management**.
+  2. Que **tu cuenta** (la del dueño de la app) sea **Spotify
+     Premium** — Spotify exige esto para que el modo desarrollo
+     funcione con otros usuarios además de ti.
+  3. Espera unos minutos; si sigue fallando, **quita a la persona de
+     la lista y vuélvela a agregar** — a varios desarrolladores esto
+     les destrabó el problema.
+  4. Asegúrate de que la persona inicie sesión con **esa cuenta
+     exacta**: si tiene varias cuentas de Spotify o ya había iniciado
+     sesión con otra en el navegador, dale a "Cerrar sesión" en
+     nuestra app antes de conectar — eso fuerza el selector de
+     cuentas de Spotify para que elija la correcta.
 - **Demasiadas solicitudes (429):** espera unos segundos y reintenta.
 - **Playlist vacía o sin audio suficiente:** prueba con otra
   playlist; hacen falta al menos 4 canciones con preview.
@@ -149,3 +167,22 @@ comunes:
 
 No se pegó el `firebaseConfig` real en el Paso 3, o quedó con los
 valores de ejemplo `PON_AQUI_TU_...`.
+
+**Le doy a "Unirme" (o a "Empezar partida") y no pasa nada**
+
+Esta versión ya muestra los errores de forma visible (un aviso rojo
+arriba de la pantalla) en vez de fallar en silencio, y un indicador
+"🔴 Sin conexión en tiempo real" si el navegador no logra hablar con
+Firebase. Si te aparece eso:
+
+- La causa más común es un **bloqueador de anuncios o rastreadores**
+  (uBlock Origin, Brave Shields, Privacy Badger, algunos antivirus, o
+  el firewall de una red corporativa/universitaria) que bloquea el
+  dominio `firebaseio.com` pensando que es un rastreador de Google.
+  Pruébalo desactivado para este sitio, o desde otra red/celular con
+  datos móviles.
+- Si "Empezar partida" aparece sin reaccionar pero no ves ningún
+  aviso: revisa si el botón sigue "apagado" — se activa solo cuando
+  al menos un amigo logró unirse (lo verás aparecer en la lista de
+  la sala de espera). Si nadie logra unirse, revisa primero el punto
+  anterior en el navegador de tus amigos.

@@ -12,6 +12,9 @@
 
 <div class="stage">
 
+  <div id="global-error-banner" class="global-error hidden"></div>
+  <p id="conn-status" class="conn-status hidden">🔴 Sin conexión en tiempo real — revisa tu internet o si un bloqueador de anuncios está bloqueando firebaseio.com</p>
+
   <!-- PANTALLA 0: ELEGIR ROL -->
   <section id="screen-role" class="screen active">
     <div class="disc disc--hero" aria-hidden="true">
@@ -102,6 +105,7 @@
     <p class="field-label" style="align-self:flex-start;">Jugadores conectados</p>
     <div id="host-players-list" class="chips"></div>
     <button id="btn-start-game" class="btn btn--primary btn--wide" disabled>Empezar partida</button>
+    <p class="hint">El botón se activa apenas se una al menos un amigo.</p>
     <button id="btn-cancel-room" class="link-btn">Cancelar sala</button>
   </section>
 
@@ -125,6 +129,8 @@
     <div id="host-reveal-card" class="reveal-card hidden">
       <p id="host-reveal-title" class="reveal-title"></p>
       <p id="host-reveal-artist" class="reveal-artist"></p>
+      <p class="field-label" style="align-self:center; margin-top:14px;">Leaderboard</p>
+      <div id="host-round-leaderboard" class="results-list results-list--compact"></div>
     </div>
 
     <button id="btn-next-round" class="btn btn--primary btn--wide hidden">Siguiente canción</button>
@@ -184,10 +190,12 @@
 
     <div id="player-reveal" class="reveal-card hidden">
       <p id="player-reveal-banner" class="reveal-banner"></p>
+      <p id="player-points-text" class="hint" style="text-align:center;"></p>
       <img id="player-reveal-art" class="reveal-art hidden" alt="" />
       <p id="player-reveal-title" class="reveal-title"></p>
       <p id="player-reveal-artist" class="reveal-artist"></p>
-      <p id="player-score-text" class="hint" style="text-align:center;"></p>
+      <p class="field-label" style="align-self:center; margin-top:14px;">Leaderboard</p>
+      <div id="player-round-leaderboard" class="results-list results-list--compact"></div>
     </div>
 
     <audio id="audio-player" preload="auto"></audio>

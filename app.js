@@ -26,15 +26,12 @@
         te da (apiKey, authDomain, databaseURL, projectId, etc.)
         y pégalo abajo en FIREBASE_CONFIG.
    ========================================================= */
-const CLIENT_ID = '0b5042ba77d74d2898f0c229ecffa3ea';
+const CLIENT_ID = 'PON_AQUI_TU_CLIENT_ID';
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyD3TGqbPWtlEU8lRK0PEOxfCCuL3Q1Cvs4",
-  authDomain: "rolaelquiz.firebaseapp.com",
-  databaseURL: "https://rolaelquiz-default-rtdb.firebaseio.com",
-  projectId: "rolaelquiz",
-  storageBucket: "rolaelquiz.firebasestorage.app",
-  messagingSenderId: "146081504654",
-  appId: "1:146081504654:web:a2769b95f0c03c49e058df"
+  apiKey: 'PON_AQUI_TU_API_KEY',
+  authDomain: 'PON_AQUI_TU_PROYECTO.firebaseapp.com',
+  databaseURL: 'https://PON_AQUI_TU_PROYECTO-default-rtdb.firebaseio.com',
+  projectId: 'PON_AQUI_TU_PROYECTO',
 };
 
 const REDIRECT_URI = window.location.origin + window.location.pathname;
@@ -61,6 +58,30 @@ let lastRenderedRound = -1;
 let lastRenderedStatus = null;
 let answered = false;
 let localSnippetTimer = null;
+let roundPlayAt = 0;
+let roundSnippetSecs = 10;
+
+const MAX_POINTS = 1000;
+const MIN_POINTS = 100;
+// Más puntos mientras más rápido respondas dentro del tiempo del
+// fragmento; 0 puntos si fallas o no alcanzas a responder.
+function computePoints(playAt, snippetSecs, answeredAt, correct) {
+  if (!correct) return 0;
+  const elapsed = Math.min(Math.max((answeredAt - playAt) / 1000, 0), snippetSecs);
+  const ratio = 1 - elapsed / snippetSecs;
+  return Math.round(MIN_POINTS + (MAX_POINTS - MIN_POINTS) * ratio);
+}
+function renderLeaderboardInto(container, players, highlightId) {
+  const sorted = Object.entries(players || {}).sort((a, b) => (b[1].score || 0) - (a[1].score || 0));
+  container.innerHTML = '';
+  sorted.forEach(([pid, p], i) => {
+    const row = document.createElement('div');
+    row.className = 'result-row' + (pid === highlightId ? ' me' : '');
+    const isMe = pid === highlightId ? ' (tú)' : '';
+    row.innerHTML = `<span class="name"><span class="rank">${i + 1}.</span> ${escapeHtml(p.name)}${isMe}</span><span class="score">${p.score || 0}</span>`;
+    container.appendChild(row);
+  });
+}
 
 // ---------- Elementos ----------
 const btnRoleHost = document.getElementById('btn-role-host');
@@ -96,6 +117,7 @@ const hostAnswerCount = document.getElementById('host-answer-count');
 const hostRevealCard = document.getElementById('host-reveal-card');
 const hostRevealTitle = document.getElementById('host-reveal-title');
 const hostRevealArtist = document.getElementById('host-reveal-artist');
+const hostRoundLeaderboard = document.getElementById('host-round-leaderboard');
 const btnNextRound = document.getElementById('btn-next-round');
 const hostAudioPlayer = document.getElementById('host-audio-player');
 
@@ -116,10 +138,11 @@ const btnManualPlay = document.getElementById('btn-manual-play');
 const playerAnswerGrid = document.getElementById('player-answer-grid');
 const playerReveal = document.getElementById('player-reveal');
 const playerRevealBanner = document.getElementById('player-reveal-banner');
+const playerPointsText = document.getElementById('player-points-text');
 const playerRevealArt = document.getElementById('player-reveal-art');
 const playerRevealTitle = document.getElementById('player-reveal-title');
 const playerRevealArtist = document.getElementById('player-reveal-artist');
-const playerScoreText = document.getElementById('player-score-text');
+const playerRoundLeaderboard = document.getElementById('player-round-leaderboard');
 const audioPlayer = document.getElementById('audio-player');
 
 const playerResultsList = document.getElementById('player-results-list');
@@ -146,15 +169,41 @@ function shuffle(arr) {
 function getServerNow() {
   return Date.now() + serverTimeOffset;
 }
+function showGlobalError(msg) {
+  const el = document.getElementById('global-error-banner');
+  el.textContent = '⚠️ ' + msg;
+  el.classList.remove('hidden');
+}
+function withTimeout(promise, ms, msg) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
+  ]);
+}
+const TIMEOUT_MSG = 'Se tardó demasiado en responder el servidor de sincronización. Si tienes un bloqueador de anuncios o rastreadores (uBlock, Brave Shields, Privacy Badger, o un firewall de tu red), puede estar bloqueando "firebaseio.com" — pruébalo desactivado para este sitio, o desde otra red.';
 function initFirebase() {
   if (db) return true;
   if (!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey === 'PON_AQUI_TU_API_KEY') {
     return false;
   }
-  firebase.initializeApp(FIREBASE_CONFIG);
-  db = firebase.database();
-  db.ref('.info/serverTimeOffset').on('value', snap => { serverTimeOffset = snap.val() || 0; });
-  return true;
+  try {
+    if (typeof firebase === 'undefined') {
+      throw new Error('No se pudo cargar la librería de Firebase (revisa tu internet o un bloqueador de scripts).');
+    }
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    db.ref('.info/serverTimeOffset').on('value', snap => { serverTimeOffset = snap.val() || 0; });
+    const connStatus = document.getElementById('conn-status');
+    db.ref('.info/connected').on('value', snap => {
+      connStatus.classList.toggle('hidden', !!snap.val());
+    });
+    return true;
+  } catch (e) {
+    console.error(e);
+    showGlobalError('No se pudo iniciar la sincronización en tiempo real: ' + e.message);
+    db = null;
+    return false;
+  }
 }
 
 // ---------- Login con Spotify (Authorization Code + PKCE) ----------
@@ -266,7 +315,7 @@ function describeSpotifyError(e) {
     return 'Tu sesión de Spotify expiró. Dale a "Cerrar sesión" y vuelve a conectar.';
   }
   if (e && e.status === 403) {
-    return 'Spotify bloqueó el acceso (403). Si tu app está en "Development mode", ve al Dashboard de Spotify → tu app → "User Management" y agrega el correo de esta cuenta como usuario permitido.';
+    return 'Spotify bloqueó el acceso (403) — "User not registered" / "User not approved". Si ya agregaste el correo en User Management y sigue igual: (1) confirma que sea el correo EXACTO de esa cuenta de Spotify, no el nombre de usuario; (2) el dueño de la app (tú) necesita cuenta Spotify Premium para que el modo desarrollo funcione con otros usuarios; (3) puede tardar varios minutos en aplicarse — prueba quitar y volver a agregar al usuario; (4) asegúrate de que la persona inicie sesión con ESA cuenta exacta (si tiene varias sesiones de Spotify abiertas en el navegador, "Cerrar sesión" en esta app y volver a conectar le mostrará el selector de cuentas).';
   }
   if (e && e.status === 429) {
     return 'Spotify está limitando las solicitudes (demasiadas seguidas). Espera unos segundos y vuelve a intentar.';
@@ -419,7 +468,7 @@ function generateRoomCode() {
 async function createUniqueRoomCode() {
   for (let i = 0; i < 5; i++) {
     const code = generateRoomCode();
-    const snap = await db.ref('rooms/' + code).once('value');
+    const snap = await withTimeout(db.ref('rooms/' + code).once('value'), 8000, TIMEOUT_MSG);
     if (!snap.exists()) return code;
   }
   return generateRoomCode();
@@ -470,14 +519,14 @@ btnCreateRoom.onclick = async () => {
     currentRoomCode = await createUniqueRoomCode();
     const rounds = buildRoundsFromPool();
     roomRef = db.ref('rooms/' + currentRoomCode);
-    await roomRef.set({
+    await withTimeout(roomRef.set({
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       status: 'lobby',
       currentRound: 0,
       settings: { roundsCount, snippetLength },
       rounds,
       players: {},
-    });
+    }), 8000, TIMEOUT_MSG);
     setupStatus.textContent = '';
     listenAsHost();
     showScreen('host-lobby');
@@ -536,6 +585,7 @@ function renderHostGame(room) {
     hostAnswerCount.textContent = `${answeredCount}/${totalPlayers} respondieron esta ronda`;
     hostRevealTitle.textContent = round.trackName;
     hostRevealArtist.textContent = round.trackArtist;
+    renderLeaderboardInto(hostRoundLeaderboard, room.players || {}, null);
     hostRevealCard.classList.remove('hidden');
     btnNextRound.classList.remove('hidden');
     btnNextRound.textContent = (idx + 1 >= room.settings.roundsCount) ? 'Ver resultados' : 'Siguiente canción';
@@ -598,9 +648,10 @@ async function finalizeRound(index) {
     const playersVal = playersSnap.val() || {};
     const updates = {};
     Object.entries(answers).forEach(([pid, a]) => {
-      if (a && a.correct) {
+      const pts = (a && typeof a.points === 'number') ? a.points : 0;
+      if (pts > 0) {
         const cur = (playersVal[pid] && playersVal[pid].score) || 0;
-        updates['players/' + pid + '/score'] = cur + 1;
+        updates['players/' + pid + '/score'] = cur + pts;
       }
     });
     updates['status'] = 'reveal';
@@ -683,7 +734,7 @@ btnJoinRoom.onclick = async () => {
   }
   btnJoinRoom.disabled = true;
   try {
-    const snap = await db.ref('rooms/' + code).once('value');
+    const snap = await withTimeout(db.ref('rooms/' + code).once('value'), 8000, TIMEOUT_MSG);
     if (!snap.exists()) {
       joinError.textContent = 'No existe una sala con ese código.';
       joinError.classList.remove('hidden');
@@ -694,17 +745,17 @@ btnJoinRoom.onclick = async () => {
     playerId = sessionStorage.getItem('rq_player_id_' + code) || ('p_' + Math.random().toString(36).slice(2, 10));
     sessionStorage.setItem('rq_player_id_' + code, playerId);
     roomRef = db.ref('rooms/' + code);
-    await roomRef.child('players/' + playerId).update({
+    await withTimeout(roomRef.child('players/' + playerId).update({
       name: playerName,
       score: (snap.val().players && snap.val().players[playerId] && snap.val().players[playerId].score) || 0,
       joinedAt: firebase.database.ServerValue.TIMESTAMP,
-    });
+    }), 8000, TIMEOUT_MSG);
     lastRenderedRound = -1;
     lastRenderedStatus = null;
     listenAsPlayer();
   } catch (e) {
     console.error(e);
-    joinError.textContent = 'No se pudo unir a la sala. Revisa tu conexión.';
+    joinError.textContent = e.message || 'No se pudo unir a la sala. Revisa tu conexión.';
     joinError.classList.remove('hidden');
   } finally {
     btnJoinRoom.disabled = false;
@@ -744,6 +795,8 @@ function setupPlayerRound(room, index) {
   btnManualPlay.onclick = () => { audioPlayer.play().catch(() => {}); };
 
   const snippetSecs = snippetLengthFromRoom(room);
+  roundPlayAt = room.playAt;
+  roundSnippetSecs = snippetSecs;
   const delay = Math.max(0, room.playAt - getServerNow());
   clearTimeout(localSnippetTimer);
   setTimeout(() => {
@@ -768,9 +821,13 @@ function submitAnswer(index, optionIndex, correctIndex, btnEl) {
   if (answered) return;
   answered = true;
   lockAnswerButtons(optionIndex);
-  playerStatusText.textContent = 'Respuesta enviada. Esperando a los demás…';
   const correct = optionIndex === correctIndex;
-  roomRef.child(`rounds/${index}/answers/${playerId}`).set({ optionIndex, correct, name: playerName });
+  const answeredAt = getServerNow();
+  const points = computePoints(roundPlayAt, roundSnippetSecs, answeredAt, correct);
+  playerStatusText.textContent = correct
+    ? `¡Correcto! +${points} pts. Esperando a los demás…`
+    : 'Respuesta enviada. Esperando a los demás…';
+  roomRef.child(`rounds/${index}/answers/${playerId}`).set({ optionIndex, correct, points, answeredAt, name: playerName });
 }
 function showPlayerReveal(room, index) {
   const round = room.rounds[index];
@@ -779,6 +836,7 @@ function showPlayerReveal(room, index) {
   const myAnswer = round.answers && round.answers[playerId];
   const gotIt = myAnswer && myAnswer.correct;
   playerRevealBanner.textContent = gotIt ? '✅ ¡Correcto!' : (myAnswer ? '❌ Fallaste' : '⌛ No respondiste a tiempo');
+  playerPointsText.textContent = `+${(myAnswer && myAnswer.points) || 0} pts esta ronda`;
   playerRevealTitle.textContent = round.trackName;
   playerRevealArtist.textContent = round.trackArtist;
   if (round.trackImage) {
@@ -787,8 +845,7 @@ function showPlayerReveal(room, index) {
   } else {
     playerRevealArt.classList.add('hidden');
   }
-  const myScore = (room.players[playerId] && room.players[playerId].score) || 0;
-  playerScoreText.textContent = `Tu puntaje: ${myScore}`;
+  renderLeaderboardInto(playerRoundLeaderboard, room.players || {}, playerId);
 }
 function renderPlayerResults(room) {
   const players = room.players || {};
@@ -849,6 +906,11 @@ btnBackRoleLogin.onclick = () => showScreen('role');
 btnBackRolePlayer.onclick = () => showScreen('role');
 
 // ---------- Arranque ----------
+window.addEventListener('error', e => showGlobalError(e.message || 'Ocurrió un error inesperado.'));
+window.addEventListener('unhandledrejection', e => {
+  const msg = (e.reason && e.reason.message) || String(e.reason);
+  showGlobalError(msg);
+});
 btnLogin.onclick = redirectToSpotify;
 btnLogout.onclick = logout;
 (async function init() {

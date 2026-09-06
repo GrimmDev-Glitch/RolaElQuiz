@@ -304,3 +304,28 @@ body {
   margin: 10px auto;
   display: block;
 }
+
+/* Leaderboard por ronda (compacto) */
+.results-list--compact { gap: 6px; width: 100%; }
+.results-list--compact .result-row { padding: 9px 14px; }
+.results-list--compact .rank { color: var(--text-muted); font-weight: 700; width: 1.4em; display: inline-block; }
+.result-row.me { border-color: var(--gold); }
+
+/* Errores globales / estado de conexión */
+.global-error {
+  width: 100%;
+  background: rgba(255, 93, 115, 0.16);
+  border: 1.5px solid var(--coral);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+.conn-status {
+  width: 100%;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--coral);
+  margin: 0 0 4px 0;
+}
