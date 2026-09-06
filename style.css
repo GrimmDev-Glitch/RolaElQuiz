@@ -329,3 +329,15 @@ body {
   color: var(--coral);
   margin: 0 0 4px 0;
 }
+
+.inapp-warning {
+  width: 100%;
+  background: rgba(255, 209, 102, 0.16);
+  border: 1.5px solid var(--gold);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}

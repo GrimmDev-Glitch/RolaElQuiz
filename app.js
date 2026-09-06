@@ -26,12 +26,12 @@
         te da (apiKey, authDomain, databaseURL, projectId, etc.)
         y pégalo abajo en FIREBASE_CONFIG.
    ========================================================= */
-const CLIENT_ID = '0b5042ba77d74d2898f0c229ecffa3ea';
+const CLIENT_ID = 'PON_AQUI_TU_CLIENT_ID';
 const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyD3TGqbPWtlEU8lRK0PEOxfCCuL3Q1Cvs4',
-  authDomain: 'rolaelquiz.firebaseapp.com',
-  databaseURL: 'https://rolaelquiz-default-rtdb.firebaseio.com',
-  projectId: 'rolaelquiz',
+  apiKey: 'PON_AQUI_TU_API_KEY',
+  authDomain: 'PON_AQUI_TU_PROYECTO.firebaseapp.com',
+  databaseURL: 'https://PON_AQUI_TU_PROYECTO-default-rtdb.firebaseio.com',
+  projectId: 'PON_AQUI_TU_PROYECTO',
 };
 
 const REDIRECT_URI = window.location.origin + window.location.pathname;
@@ -174,6 +174,34 @@ function showGlobalError(msg) {
   el.textContent = '⚠️ ' + msg;
   el.classList.remove('hidden');
 }
+// Los navegadores integrados de apps de chat/redes sociales (Instagram,
+// Facebook, TikTok, WeChat, LINE...) son conocidos por bloquear o romper
+// audio, almacenamiento local y conexiones en tiempo real — a veces sin
+// mostrar ningún error, simplemente sin hacer nada. Avisamos apenas carga.
+function detectInAppBrowser() {
+  const ua = navigator.userAgent || '';
+  const patterns = [
+    { re: /FBAN|FBAV|FB_IAB/i, name: 'Facebook' },
+    { re: /Instagram/i, name: 'Instagram' },
+    { re: /\bLine\//i, name: 'LINE' },
+    { re: /MicroMessenger/i, name: 'WeChat' },
+    { re: /KAKAOTALK/i, name: 'KakaoTalk' },
+    { re: /musical_ly|BytedanceWebview|TikTok/i, name: 'TikTok' },
+    { re: /Twitter/i, name: 'Twitter/X' },
+    { re: /\bWhatsApp\//i, name: 'WhatsApp' },
+  ];
+  for (const p of patterns) {
+    if (p.re.test(ua)) return p.name;
+  }
+  return null;
+}
+(function warnIfInAppBrowser() {
+  const appName = detectInAppBrowser();
+  if (!appName) return;
+  const el = document.getElementById('inapp-browser-warning');
+  el.textContent = `⚠️ Parece que abriste este link desde el navegador integrado de ${appName}. Esta app necesita un navegador normal para funcionar (audio, guardar datos, conexión en tiempo real). Toca ⋮ o el ícono de compartir arriba de la pantalla y elige "Abrir en Chrome" / "Abrir en Safari" / "Abrir en el navegador", y prueba desde ahí.`;
+  el.classList.remove('hidden');
+})();
 function withTimeout(promise, ms, msg) {
   return Promise.race([
     promise,
@@ -194,8 +222,16 @@ function initFirebase() {
     db = firebase.database();
     db.ref('.info/serverTimeOffset').on('value', snap => { serverTimeOffset = snap.val() || 0; });
     const connStatus = document.getElementById('conn-status');
+    let everConnected = false;
     db.ref('.info/connected').on('value', snap => {
-      connStatus.classList.toggle('hidden', !!snap.val());
+      const connected = !!snap.val();
+      if (connected) everConnected = true;
+      connStatus.textContent = connected
+        ? ''
+        : (everConnected
+          ? '🔴 Se perdió la conexión en tiempo real — reconectando…'
+          : '🔴 Sin conexión en tiempo real. Si tarda más de unos segundos, revisa si un bloqueador de anuncios/rastreadores (uBlock, AdGuard, Brave Shields...) está bloqueando "firebaseio.com", o prueba con otra red / datos móviles.');
+      connStatus.classList.toggle('hidden', connected);
     });
     return true;
   } catch (e) {
@@ -710,6 +746,7 @@ btnNewSetupHost.onclick = () => {
 
 // ---------- Jugador: unirse ----------
 btnJoinRoom.onclick = async () => {
+  joinError.classList.add('hidden');
   if (!initFirebase()) {
     joinError.textContent = 'Falta configurar Firebase en app.js.';
     joinError.classList.remove('hidden');
@@ -717,22 +754,28 @@ btnJoinRoom.onclick = async () => {
   }
   const code = (joinCodeInput.value || '').trim().toUpperCase();
   const name = (joinNameInput.value || '').trim().slice(0, 20);
-  joinError.classList.add('hidden');
   if (!code || !name) {
     joinError.textContent = 'Escribe tu nombre y el código de la sala.';
     joinError.classList.remove('hidden');
     return;
   }
+  const originalLabel = btnJoinRoom.textContent;
+  btnJoinRoom.disabled = true;
+  btnJoinRoom.textContent = 'Uniéndote…';
   // Desbloquea el audio para reproducir más tarde sin otro clic
   // (los navegadores exigen un gesto del usuario para permitir audio).
+  // Es un "mejor esfuerzo": si falla en algún navegador raro, no debe
+  // impedir que la persona se una a la sala.
   try {
     audioPlayer.muted = true;
-    await audioPlayer.play().catch(() => {});
+    const p = audioPlayer.play();
+    if (p && typeof p.then === 'function') await p.catch(() => {});
     audioPlayer.pause();
+  } catch (e) {
+    console.warn('No se pudo pre-desbloquear el audio:', e);
   } finally {
     audioPlayer.muted = false;
   }
-  btnJoinRoom.disabled = true;
   try {
     const snap = await withTimeout(db.ref('rooms/' + code).once('value'), 8000, TIMEOUT_MSG);
     if (!snap.exists()) {
@@ -759,6 +802,7 @@ btnJoinRoom.onclick = async () => {
     joinError.classList.remove('hidden');
   } finally {
     btnJoinRoom.disabled = false;
+    btnJoinRoom.textContent = originalLabel;
   }
 };
 

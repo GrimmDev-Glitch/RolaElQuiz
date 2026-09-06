@@ -172,17 +172,30 @@ valores de ejemplo `PON_AQUI_TU_...`.
 
 Esta versión ya muestra los errores de forma visible (un aviso rojo
 arriba de la pantalla) en vez de fallar en silencio, y un indicador
-"🔴 Sin conexión en tiempo real" si el navegador no logra hablar con
-Firebase. Si te aparece eso:
+"Conectando con el servidor de sincronización…" que se oculta solo
+cuando realmente logra conectar. Si te quedas viendo ese mensaje
+(o pasa a "🔴 Sin conexión") más de unos segundos:
 
 - La causa más común es un **bloqueador de anuncios o rastreadores**
-  (uBlock Origin, Brave Shields, Privacy Badger, algunos antivirus, o
-  el firewall de una red corporativa/universitaria) que bloquea el
-  dominio `firebaseio.com` pensando que es un rastreador de Google.
-  Pruébalo desactivado para este sitio, o desde otra red/celular con
-  datos móviles.
-- Si "Empezar partida" aparece sin reaccionar pero no ves ningún
-  aviso: revisa si el botón sigue "apagado" — se activa solo cuando
-  al menos un amigo logró unirse (lo verás aparecer en la lista de
-  la sala de espera). Si nadie logra unirse, revisa primero el punto
-  anterior en el navegador de tus amigos.
+  (uBlock Origin, Brave Shields, Privacy Badger, AdGuard, algunos
+  antivirus, o el firewall de una red corporativa/universitaria) que
+  bloquea el dominio `firebaseio.com` pensando que es un rastreador
+  de Google. Pruébalo desactivado para este sitio, o desde otra
+  red/datos móviles.
+- **Si lo abriste desde un link compartido por WhatsApp, Instagram,
+  TikTok o Facebook en el celular**: esas apps abren los links en su
+  propio "navegador integrado", que es conocido por romper cosas
+  como el audio o el guardado de datos en el celular. Toca los tres
+  puntitos (⋮) o el ícono de compartir dentro de esa mini-ventana y
+  elige **"Abrir en Chrome"** / **"Abrir en Safari"** / "Abrir en el
+  navegador", y prueba desde ahí.
+- Si el botón "Empezar partida" aparece sin reaccionar pero no ves
+  ningún aviso: revisa si el botón sigue "apagado" — se activa solo
+  cuando al menos un amigo logró unirse (lo verás aparecer en la
+  lista de la sala de espera). Si nadie logra unirse, revisa primero
+  los dos puntos anteriores en el navegador de tus amigos.
+- Si acabas de subir una actualización de estos archivos y sigue
+  fallando igual que antes, el celular puede estar usando una copia
+  vieja guardada en caché: cierra la pestaña por completo (no solo
+  "atrás") y ábrela de nuevo, o agrega algo al final del link (como
+  `?v=2`) para forzar que cargue la versión más reciente.
