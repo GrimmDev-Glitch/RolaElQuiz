@@ -26,12 +26,12 @@
         te da (apiKey, authDomain, databaseURL, projectId, etc.)
         y pégalo abajo en FIREBASE_CONFIG.
    ========================================================= */
-const CLIENT_ID = '0b5042ba77d74d2898f0c229ecffa3ea';
+const CLIENT_ID = 'PON_AQUI_TU_CLIENT_ID';
 const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyD3TGqbPWtlEU8lRK0PEOxfCCuL3Q1Cvs4',
-  authDomain: 'rolaelquiz.firebaseapp.com',
-  databaseURL: 'https://rolaelquiz-default-rtdb.firebaseio.com',
-  projectId: 'rolaelquiz',
+  apiKey: 'PON_AQUI_TU_API_KEY',
+  authDomain: 'PON_AQUI_TU_PROYECTO.firebaseapp.com',
+  databaseURL: 'https://PON_AQUI_TU_PROYECTO-default-rtdb.firebaseio.com',
+  projectId: 'PON_AQUI_TU_PROYECTO',
 };
 
 const REDIRECT_URI = window.location.origin + window.location.pathname;
@@ -351,7 +351,8 @@ function describeSpotifyError(e) {
     return 'Tu sesión de Spotify expiró. Dale a "Cerrar sesión" y vuelve a conectar.';
   }
   if (e && e.status === 403) {
-    return 'Spotify bloqueó el acceso (403) — "User not registered" / "User not approved". Si ya agregaste el correo en User Management y sigue igual: (1) confirma que sea el correo EXACTO de esa cuenta de Spotify, no el nombre de usuario; (2) el dueño de la app (tú) necesita cuenta Spotify Premium para que el modo desarrollo funcione con otros usuarios; (3) puede tardar varios minutos en aplicarse — prueba quitar y volver a agregar al usuario; (4) asegúrate de que la persona inicie sesión con ESA cuenta exacta (si tiene varias sesiones de Spotify abiertas en el navegador, "Cerrar sesión" en esta app y volver a conectar le mostrará el selector de cuentas).';
+    const real = (e.message && e.message !== 'Spotify API error 403') ? e.message : '(Spotify no envió más detalle)';
+    return `Spotify bloqueó el acceso (403). Mensaje real de Spotify: "${real}". Si ya agregaste el correo en User Management y sigue igual: (1) confirma que sea el correo EXACTO de esa cuenta de Spotify, no el nombre de usuario ni el que aparece en el perfil; (2) el dueño de la app (tú) necesita cuenta Spotify Premium para que el modo desarrollo funcione con otros usuarios; (3) puede tardar varios minutos en aplicarse — prueba quitar y volver a agregar al usuario; (4) asegúrate de iniciar sesión con ESA cuenta exacta (si hay varias sesiones abiertas en el navegador, "Cerrar sesión" en esta app te muestra el selector de cuentas de Spotify).`;
   }
   if (e && e.status === 429) {
     return 'Spotify está limitando las solicitudes (demasiadas seguidas). Espera unos segundos y vuelve a intentar.';
@@ -762,14 +763,27 @@ btnJoinRoom.onclick = async () => {
   const originalLabel = btnJoinRoom.textContent;
   btnJoinRoom.disabled = true;
   btnJoinRoom.textContent = 'Uniéndote…';
+  // Seguro general: pase lo que pase, el botón no se queda pegado
+  // para siempre (respaldo por si algo inesperado se cuelga).
+  const safetyTimer = setTimeout(() => {
+    if (btnJoinRoom.disabled) {
+      btnJoinRoom.disabled = false;
+      btnJoinRoom.textContent = originalLabel;
+      joinError.textContent = 'Se tardó demasiado y no hubo respuesta. Intenta de nuevo, revisa tu conexión, o si tienes un bloqueador de anuncios, desactívalo para este sitio.';
+      joinError.classList.remove('hidden');
+    }
+  }, 15000);
   // Desbloquea el audio para reproducir más tarde sin otro clic
   // (los navegadores exigen un gesto del usuario para permitir audio).
-  // Es un "mejor esfuerzo": si falla en algún navegador raro, no debe
-  // impedir que la persona se una a la sala.
+  // Es un "mejor esfuerzo" con su propio límite de tiempo: en algunos
+  // navegadores el play() puede quedarse esperando para siempre sin
+  // resolver ni rechazar, y eso NO debe bloquear la unión a la sala.
   try {
     audioPlayer.muted = true;
     const p = audioPlayer.play();
-    if (p && typeof p.then === 'function') await p.catch(() => {});
+    if (p && typeof p.then === 'function') {
+      await withTimeout(p.catch(() => {}), 1500, 'audio unlock timeout').catch(() => {});
+    }
     audioPlayer.pause();
   } catch (e) {
     console.warn('No se pudo pre-desbloquear el audio:', e);
@@ -801,6 +815,7 @@ btnJoinRoom.onclick = async () => {
     joinError.textContent = e.message || 'No se pudo unir a la sala. Revisa tu conexión.';
     joinError.classList.remove('hidden');
   } finally {
+    clearTimeout(safetyTimer);
     btnJoinRoom.disabled = false;
     btnJoinRoom.textContent = originalLabel;
   }
