@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Adivina la Canción — Quiz musical</title>
+<title>RolaElQuiz — Adivina la canción con Spotify</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -12,21 +12,36 @@
 
 <div class="stage">
 
-  <!-- PANTALLA 1: LOGIN -->
-  <section id="screen-login" class="screen active">
+  <!-- PANTALLA 0: ELEGIR ROL -->
+  <section id="screen-role" class="screen active">
     <div class="disc disc--hero" aria-hidden="true">
       <div class="disc__label"></div>
     </div>
-    <h1 class="title">Adivina la Canción</h1>
-    <p class="subtitle">Conecta tu Spotify, elige tus canciones y pon a prueba a tus amigos.</p>
-    <button id="btn-login" class="btn btn--primary">Conectar con Spotify</button>
-    <p id="login-error" class="error hidden"></p>
-    <p class="fineprint">Solo quien organiza el juego necesita iniciar sesión. No hace falta Spotify Premium.</p>
+    <h1 class="title">RolaElQuiz</h1>
+    <p class="subtitle">Adivina canciones de Spotify con tus amigos, aunque estén en otro país.</p>
+    <button id="btn-role-host" class="btn btn--primary btn--wide">Soy el anfitrión (conecto Spotify)</button>
+    <button id="btn-role-player" class="btn btn--ghost btn--wide">Soy jugador (me uno con un código)</button>
+    <p class="fineprint">Solo el anfitrión necesita cuenta de Spotify. Los jugadores solo necesitan el código de la sala.</p>
   </section>
 
-  <!-- PANTALLA 2: CONFIGURACIÓN -->
-  <section id="screen-setup" class="screen">
-    <h2 class="title title--sm">Prepara la partida</h2>
+  <!-- PANTALLA: LOGIN (solo anfitrión) -->
+  <section id="screen-login" class="screen">
+    <div class="disc disc--hero" aria-hidden="true">
+      <div class="disc__label"></div>
+    </div>
+    <h1 class="title">Conecta tu Spotify</h1>
+    <p class="subtitle">Vas a elegir tus canciones y crear la sala para que tus amigos entren.</p>
+    <button id="btn-login" class="btn btn--primary">Conectar con Spotify</button>
+    <p id="login-error" class="error hidden"></p>
+    <button id="btn-back-role-login" class="link-btn">← Volver</button>
+  </section>
+
+  <!-- PANTALLA: CONFIGURACIÓN DEL ANFITRIÓN -->
+  <section id="screen-host-setup" class="screen">
+    <div class="game-topbar">
+      <h2 class="title title--sm" style="margin:0;">Prepara la sala</h2>
+      <button id="btn-logout" class="link-btn">Cerrar sesión</button>
+    </div>
 
     <div class="field-group">
       <span class="field-label">Fuente de canciones</span>
@@ -44,15 +59,13 @@
           <option value="">Cargando tus playlists…</option>
         </select>
         <p class="hint">Aquí también aparece cualquier Blend que hayas creado — se lee como una playlist normal.</p>
-      </div>
-    </div>
 
-    <div class="field-group">
-      <span class="field-label">Jugadores</span>
-      <div id="players-list" class="chips"></div>
-      <div class="add-player">
-        <input id="player-name-input" type="text" placeholder="Nombre del jugador" maxlength="20" />
-        <button id="btn-add-player" class="btn btn--ghost">Agregar</button>
+        <p class="hint" style="margin-top:14px;">¿No la ves en la lista, o es de otra cuenta? Pega el link aquí:</p>
+        <div class="add-player">
+          <input id="playlist-url-input" type="text" placeholder="https://open.spotify.com/playlist/..." />
+          <button id="btn-use-playlist-url" class="btn btn--ghost">Usar</button>
+        </div>
+        <p id="playlist-url-status" class="hint hidden"></p>
       </div>
     </div>
 
@@ -77,52 +90,120 @@
       </div>
     </div>
 
-    <button id="btn-start-quiz" class="btn btn--primary">Empezar partida</button>
+    <button id="btn-create-room" class="btn btn--primary btn--wide">Crear sala</button>
     <p id="setup-status" class="hint"></p>
   </section>
 
-  <!-- PANTALLA 3: JUEGO -->
-  <section id="screen-game" class="screen">
+  <!-- PANTALLA: SALA DE ESPERA (ANFITRIÓN) -->
+  <section id="screen-host-lobby" class="screen">
+    <h2 class="title title--sm">Sala lista</h2>
+    <p class="hint">Comparte este código con tus amigos:</p>
+    <div class="room-code" id="room-code-display">------</div>
+    <p class="field-label" style="align-self:flex-start;">Jugadores conectados</p>
+    <div id="host-players-list" class="chips"></div>
+    <button id="btn-start-game" class="btn btn--primary btn--wide" disabled>Empezar partida</button>
+    <button id="btn-cancel-room" class="link-btn">Cancelar sala</button>
+  </section>
+
+  <!-- PANTALLA: JUEGO (VISTA ANFITRIÓN) -->
+  <section id="screen-host-game" class="screen">
     <div class="game-topbar">
-      <span id="round-counter" class="round-counter">Ronda 1/10</span>
-      <button id="btn-quit-game" class="link-btn">Terminar</button>
+      <span id="host-round-counter" class="round-counter">Ronda 1/10</span>
+      <button id="btn-quit-host-game" class="link-btn">Terminar</button>
     </div>
 
     <div class="disc-wrap">
-      <div id="disc" class="disc">
-        <img id="disc-art" class="disc__art hidden" alt="" />
+      <div id="host-disc" class="disc">
+        <img id="host-disc-art" class="disc__art hidden" alt="" />
         <div class="disc__label"></div>
       </div>
     </div>
 
-    <div id="reveal-card" class="reveal-card hidden">
-      <p id="reveal-title" class="reveal-title"></p>
-      <p id="reveal-artist" class="reveal-artist"></p>
+    <p id="host-game-status" class="hint" style="text-align:center;">Preparando…</p>
+    <p id="host-answer-count" class="hint" style="text-align:center;"></p>
+
+    <div id="host-reveal-card" class="reveal-card hidden">
+      <p id="host-reveal-title" class="reveal-title"></p>
+      <p id="host-reveal-artist" class="reveal-artist"></p>
     </div>
 
-    <div id="game-controls" class="game-controls">
-      <button id="btn-play-snippet" class="btn btn--primary btn--wide">▶ Reproducir fragmento</button>
+    <button id="btn-next-round" class="btn btn--primary btn--wide hidden">Siguiente canción</button>
+
+    <audio id="host-audio-player" preload="auto"></audio>
+  </section>
+
+  <!-- PANTALLA: RESULTADOS (ANFITRIÓN) -->
+  <section id="screen-host-results" class="screen">
+    <h2 class="title title--sm">Resultados</h2>
+    <div id="host-results-list" class="results-list"></div>
+    <button id="btn-play-again-host" class="btn btn--primary btn--wide">Jugar otra vez (misma sala)</button>
+    <button id="btn-new-setup-host" class="btn btn--ghost btn--wide">Nueva configuración</button>
+  </section>
+
+  <!-- PANTALLA: UNIRSE (JUGADOR) -->
+  <section id="screen-player-join" class="screen">
+    <div class="disc disc--hero" aria-hidden="true">
+      <div class="disc__label"></div>
+    </div>
+    <h1 class="title title--sm">Unirte a una sala</h1>
+    <div class="field-group">
+      <span class="field-label">Código de la sala</span>
+      <input id="join-code-input" class="select" type="text" placeholder="Ej. AB3X9" maxlength="8" style="text-transform:uppercase;" />
+    </div>
+    <div class="field-group">
+      <span class="field-label">Tu nombre</span>
+      <input id="join-name-input" class="select" type="text" placeholder="¿Cómo te llamas?" maxlength="20" />
+    </div>
+    <button id="btn-join-room" class="btn btn--primary btn--wide">Unirme</button>
+    <p id="join-error" class="error hidden"></p>
+    <button id="btn-back-role-player" class="link-btn">← Volver</button>
+  </section>
+
+  <!-- PANTALLA: SALA DE ESPERA (JUGADOR) -->
+  <section id="screen-player-lobby" class="screen">
+    <h2 class="title title--sm">Estás dentro 🎉</h2>
+    <p class="hint">Esperando a que el anfitrión empiece la partida…</p>
+    <p class="field-label" style="align-self:flex-start;">Jugadores en la sala</p>
+    <div id="player-lobby-list" class="chips"></div>
+  </section>
+
+  <!-- PANTALLA: JUEGO (VISTA JUGADOR) -->
+  <section id="screen-player-game" class="screen">
+    <span id="player-round-counter" class="round-counter">Ronda 1/10</span>
+
+    <div class="disc-wrap">
+      <div id="player-disc" class="disc">
+        <div class="disc__label"></div>
+      </div>
     </div>
 
-    <div id="score-controls" class="score-controls hidden">
-      <p class="field-label">¿Quién adivinó?</p>
-      <div id="score-players" class="chips chips--selectable"></div>
-      <button id="btn-confirm-round" class="btn btn--primary btn--wide">Siguiente canción</button>
+    <p id="player-status-text" class="hint" style="text-align:center;">Prepárate…</p>
+    <button id="btn-manual-play" class="btn btn--ghost hidden">🔊 ¿No escuchas nada? Toca aquí</button>
+
+    <div id="player-answer-grid" class="answer-grid"></div>
+
+    <div id="player-reveal" class="reveal-card hidden">
+      <p id="player-reveal-banner" class="reveal-banner"></p>
+      <img id="player-reveal-art" class="reveal-art hidden" alt="" />
+      <p id="player-reveal-title" class="reveal-title"></p>
+      <p id="player-reveal-artist" class="reveal-artist"></p>
+      <p id="player-score-text" class="hint" style="text-align:center;"></p>
     </div>
 
     <audio id="audio-player" preload="auto"></audio>
   </section>
 
-  <!-- PANTALLA 4: RESULTADOS -->
-  <section id="screen-results" class="screen">
+  <!-- PANTALLA: RESULTADOS (JUGADOR) -->
+  <section id="screen-player-results" class="screen">
     <h2 class="title title--sm">Resultados</h2>
-    <div id="results-list" class="results-list"></div>
-    <button id="btn-play-again" class="btn btn--primary">Jugar otra vez</button>
-    <button id="btn-back-setup" class="btn btn--ghost">Cambiar canciones</button>
+    <div id="player-results-list" class="results-list"></div>
+    <button id="btn-player-back-join" class="btn btn--ghost btn--wide">Volver a unirme</button>
   </section>
 
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

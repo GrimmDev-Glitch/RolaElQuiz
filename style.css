@@ -249,3 +249,58 @@ body {
 .result-row.winner { border-color: var(--gold); }
 .result-row .name { font-weight: 700; }
 .result-row .score { font-family: var(--font-display); font-size: 1.3rem; color: var(--gold); }
+
+/* Rol / sala */
+.btn--wide.btn--ghost { margin-top: -6px; }
+.room-code {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--gold);
+  background: var(--bg-raised);
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 28px;
+  text-align: center;
+}
+
+/* Grid de respuestas (multiple choice) */
+.answer-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.answer-btn {
+  background: var(--bg-raised);
+  border: 1.5px solid var(--line);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 16px 12px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  min-height: 64px;
+}
+.answer-btn:disabled { opacity: 0.55; cursor: default; }
+.answer-btn.selected { border-color: var(--gold); background: rgba(255, 209, 102, 0.14); }
+.answer-btn.correct { border-color: #6FCF97; background: rgba(111, 207, 151, 0.16); }
+.answer-btn.wrong { border-color: var(--coral); background: rgba(255, 93, 115, 0.14); }
+
+.reveal-banner {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 0;
+}
+.reveal-art {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  object-fit: cover;
+  margin: 10px auto;
+  display: block;
+}
