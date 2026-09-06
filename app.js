@@ -26,12 +26,15 @@
         te da (apiKey, authDomain, databaseURL, projectId, etc.)
         y pégalo abajo en FIREBASE_CONFIG.
    ========================================================= */
-const CLIENT_ID = 'PON_AQUI_TU_CLIENT_ID';
+const CLIENT_ID = '0b5042ba77d74d2898f0c229ecffa3ea';
 const FIREBASE_CONFIG = {
-  apiKey: 'PON_AQUI_TU_API_KEY',
-  authDomain: 'PON_AQUI_TU_PROYECTO.firebaseapp.com',
-  databaseURL: 'https://PON_AQUI_TU_PROYECTO-default-rtdb.firebaseio.com',
-  projectId: 'PON_AQUI_TU_PROYECTO',
+  apiKey: "AIzaSyD3TGqbPWtlEU8lRK0PEOxfCCuL3Q1Cvs4",
+  authDomain: "rolaelquiz.firebaseapp.com",
+  databaseURL: "https://rolaelquiz-default-rtdb.firebaseio.com",
+  projectId: "rolaelquiz",
+  storageBucket: "rolaelquiz.firebasestorage.app",
+  messagingSenderId: "146081504654",
+  appId: "1:146081504654:web:a2769b95f0c03c49e058df"
 };
 
 const REDIRECT_URI = window.location.origin + window.location.pathname;
