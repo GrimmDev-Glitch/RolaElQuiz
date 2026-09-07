@@ -134,6 +134,7 @@ const hostAnswerCount = document.getElementById('host-answer-count');
 const hostRevealCard = document.getElementById('host-reveal-card');
 const hostRevealTitle = document.getElementById('host-reveal-title');
 const hostRevealArtist = document.getElementById('host-reveal-artist');
+const hostPlayingOptions = document.getElementById('host-playing-options');
 const hostRoundLeaderboard = document.getElementById('host-round-leaderboard');
 const hostRevealOptions = document.getElementById('host-reveal-options');
 const hostRoundAnswers = document.getElementById('host-round-answers');
@@ -389,7 +390,7 @@ function describeSpotifyError(e) {
   }
   if (e && e.status === 403) {
     const real = (e.message && e.message !== 'Spotify API error 403') ? e.message : '(Spotify no envió más detalle)';
-    return `Spotify bloqueó el acceso (403). Mensaje real de Spotify: "${real}". Si ya agregaste el correo en User Management y sigue igual: (1) confirma que sea el correo EXACTO de esa cuenta de Spotify, no el nombre de usuario ni el que aparece en el perfil; (2) el dueño de la app (tú) necesita cuenta Spotify Premium para que el modo desarrollo funcione con otros usuarios; (3) puede tardar varios minutos en aplicarse — prueba quitar y volver a agregar al usuario; (4) asegúrate de iniciar sesión con ESA cuenta exacta (si hay varias sesiones abiertas en el navegador, "Cerrar sesión" en esta app te muestra el selector de cuentas de Spotify).`;
+    return `Spotify bloqueó el acceso (403). Mensaje real de Spotify: "${real}". Spotify cambió las reglas del modo desarrollo en 2026 — antes de revisar otra cosa: (1) la cuenta con la que creaste la app DEBE tener Spotify Premium activo, si no, TODAS las llamadas fallan con 403 incluso para listar tus propias playlists; (2) si ya tienes Premium, confirma que el correo agregado en User Management sea el exacto de esa cuenta; (3) espera unos minutos tras agregar/quitar usuarios y reintenta.`;
   }
   if (e && e.status === 429) {
     return 'Spotify está limitando las solicitudes (demasiadas seguidas). Espera unos segundos y vuelve a intentar.';
@@ -464,25 +465,47 @@ function normalizeTrack(t) {
     image: t.album && t.album.images && t.album.images[0] ? t.album.images[0].url : '',
   };
 }
+// Desde 2026 Spotify renombró el endpoint de canciones de una playlist:
+// /playlists/{id}/tracks (viejo, ahora da 403 siempre) pasó a ser
+// /playlists/{id}/items, y el campo "track" de cada elemento pasó a
+// llamarse "item". Además, para playlists que NO son tuyas ni donde
+// colaboras, Spotify ya solo devuelve los metadatos (sin canciones),
+// sin importar si son públicas o no.
+async function fetchPlaylistTracks(playlistId) {
+  const fields = encodeURIComponent('items(item(id,name,artists(name),album(images))),next');
+  const first = await spotifyGet(`https://api.spotify.com/v1/playlists/${playlistId}/items?limit=100&fields=${fields}`);
+  if (!('items' in first)) {
+    const err = new Error(
+      'Esta playlist no es tuya ni eres colaborador, así que Spotify ya no permite leer sus canciones desde la API — así sea pública. Esto cambió con una actualización de Spotify de 2026: ahora solo se pueden leer canciones de playlists propias o donde colabores. Pídele a quien la creó que te agregue como colaborador, o usa una playlist tuya (o tus Me Gusta).'
+    );
+    err.status = 403;
+    err.customMessage = true;
+    throw err;
+  }
+  let items = first.items || [];
+  let next = first.next;
+  while (next) {
+    const data = await spotifyGet(next);
+    items = items.concat(data.items || []);
+    next = data.next;
+  }
+  return items.map(i => i.item).filter(Boolean);
+}
 async function fetchSourcePool() {
   if (selectedSource === 'liked') {
     const items = await fetchAllPages('https://api.spotify.com/v1/me/tracks?limit=50');
     return items.map(i => i.track).filter(Boolean);
   }
   const playlistId = manualPlaylistId || playlistSelect.value;
-  const fields = encodeURIComponent('items(track(id,name,artists(name),album(images))),next');
   try {
-    const items = await fetchAllPages(
-      `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100&fields=${fields}`
-    );
-    return items.map(i => i.track).filter(Boolean);
+    return await fetchPlaylistTracks(playlistId);
   } catch (e) {
-    if (e && e.status === 403) {
+    if (e && e.status === 403 && !e.customMessage) {
       const isManual = !!manualPlaylistId;
       const err = new Error(
         isManual
-          ? 'No se pudo leer esa playlist (403). Esto casi siempre pasa porque la playlist es privada o no es tuya: Spotify solo deja leer canciones de playlists PÚBLICAS ajenas, o de cualquiera de las tuyas (privada o pública). Si es un Blend, revisa que su link sea realmente público (ábrelo en una ventana de incógnito sin sesión iniciada para comprobarlo); si no, mejor elígelo directo de la lista desplegable "Mis playlists" en vez de pegar el link.'
-          : 'No se pudo leer esa playlist (403), lo cual es raro tratándose de una playlist tuya de la lista desplegable. Prueba recargar la lista (🔄) o cerrar sesión y volver a conectar tu cuenta.'
+          ? 'No se pudo leer esa playlist (403). Prueba eligiéndola directo de la lista desplegable "Mis playlists" en vez de pegar el link, o revisa que tu cuenta de anfitrión tenga Spotify Premium (obligatorio desde 2026 para apps en modo desarrollo — sin eso, TODAS las llamadas fallan con 403).'
+          : 'No se pudo leer esa playlist (403). Revisa que tu cuenta de anfitrión tenga Spotify Premium (obligatorio desde 2026 para apps en modo desarrollo), o dale a 🔄 para recargar la lista de playlists.'
       );
       err.status = 403;
       err.customMessage = true;
@@ -672,6 +695,15 @@ function renderHostGame(room) {
     hostAnswerCount.textContent = `${answeredCount}/${totalPlayers} ya respondieron`;
     hostRevealCard.classList.add('hidden');
     btnNextRound.classList.add('hidden');
+    hostPlayingOptions.classList.remove('hidden');
+    hostPlayingOptions.innerHTML = '';
+    round.options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'answer-btn';
+      btn.textContent = opt;
+      btn.disabled = true;
+      hostPlayingOptions.appendChild(btn);
+    });
     if (lastPlayedRoundHost !== idx) {
       lastPlayedRoundHost = idx;
       const delay = Math.max(0, room.playAt - getServerNow());
@@ -698,6 +730,7 @@ function renderHostGame(room) {
     hostAudioPlayer.pause();
     clearInterval(hostTimerInterval);
     hostTimerWrap.classList.add('hidden');
+    hostPlayingOptions.classList.add('hidden');
     if (round.trackImage) { hostDiscArt.src = round.trackImage; hostDiscArt.classList.remove('hidden'); }
     hostGameStatus.textContent = '';
     hostAnswerCount.textContent = `${answeredCount}/${totalPlayers} respondieron esta ronda`;

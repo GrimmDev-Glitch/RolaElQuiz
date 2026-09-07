@@ -12,6 +12,21 @@ segundos); Spotify solo se usa para leer las canciones del anfitrión.
 La sincronización entre pantallas usa Firebase Realtime Database
 (plan gratuito).
 
+## ⚠️ Requisito importante desde 2026: Spotify Premium para el anfitrión
+
+Spotify cambió las reglas de las apps en "modo desarrollo" en 2026:
+**la cuenta con la que creas la app (la del anfitrión) necesita tener
+Spotify Premium activo**. Sin eso, TODAS las llamadas a la API fallan
+con error 403 — incluso algo tan básico como listar tus propias
+playlists. Si vas a probar esto y no tienes Premium, es la primera
+causa a descartar antes que cualquier otra cosa de las de abajo.
+
+Además, desde ese mismo cambio, Spotify **solo permite leer las
+canciones de playlists que sean tuyas o donde colabores** — ya no
+importa si son públicas o no. Si quieres usar la playlist de otra
+persona (o un Blend que no armaste tú), pídele que te agregue como
+colaborador, o mejor usa una tuya.
+
 ## Paso 1: crear tu app de Spotify (una sola vez, gratis)
 
 1. Entra a https://developer.spotify.com/dashboard y accede con tu
