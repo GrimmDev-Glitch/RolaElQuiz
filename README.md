@@ -23,9 +23,13 @@ causa a descartar antes que cualquier otra cosa de las de abajo.
 
 Además, desde ese mismo cambio, Spotify **solo permite leer las
 canciones de playlists que sean tuyas o donde colabores** — ya no
-importa si son públicas o no. Si quieres usar la playlist de otra
-persona (o un Blend que no armaste tú), pídele que te agregue como
-colaborador, o mejor usa una tuya.
+importa si son públicas o no. El "Extended Quota Mode" que sí deja
+leer la playlist de cualquiera ahora exige ser una empresa registrada
+con 250,000 usuarios activos al mes, así que no es una opción real
+para un proyecto entre amigos. Por eso el buscador de playlists de
+esta app (que te ayuda a encontrarlas por nombre) deja claro que solo
+vas a poder usar el resultado si es tuya o si te agregan como
+colaborador — no hay forma de rodear esta regla de Spotify con código.
 
 ## Paso 1: crear tu app de Spotify (una sola vez, gratis)
 
@@ -131,6 +135,23 @@ actualizar también el Redirect URI en el Dashboard de Spotify.
    falta volver a escribir el código si el anfitrión da "Jugar otra
    vez"; para irse de verdad está el botón "Salir de la sala".
 
+## Modos de juego
+
+Al preparar la sala puedes elegir entre tres modos:
+
+- **Normal** — puntos por velocidad, como se explica abajo (100 a 50).
+- **Muerte súbita** — cada ronda vale igual: solo quien acierta
+  primero se lleva 1 punto; a nadie más le suma esa ronda, aunque
+  también haya acertado. Si al final del juego dos o más quedan
+  empatados en primer lugar, se juega automáticamente una ronda
+  extra SOLO entre los empatados para desempatar (quien acierte
+  primero ahí, gana).
+- **Solo** — para practicar sin crear una sala ni necesitar amigos:
+  eliges tu fuente de canciones normal, le das "Empezar a practicar"
+  y juegas tú mismo desde el mismo dispositivo, viendo tu puntaje al
+  final. No usa Firebase para nada, así que funciona incluso sin
+  configurar ese paso.
+
 ## Puntaje
 
 Por cada ronda, quienes responden correcto se ordenan por qué tan
@@ -171,6 +192,28 @@ celular esté perfectamente sincronizado.
   su link directamente en el campo manual.
 
 ## Solución de problemas
+
+**"Error cargando playlists" incluso teniendo Spotify Premium**
+
+Si ya confirmaste que la cuenta anfitriona tiene Premium y sigue
+fallando, el mensaje ahora aparece justo debajo del selector de
+playlists (antes quedaba escondido más abajo, difícil de ver — ya
+corregido). Con ese mensaje real a la vista, revisa además:
+
+- **¿La cuenta con la que creaste la app en el Dashboard de Spotify
+  es la MISMA con la que te conectas como anfitrión en esta app?**
+  Si son cuentas distintas, la segunda cuenta cuenta como "otro
+  usuario" y necesita estar en User Management aunque sea tuya
+  también.
+- **Revoca el acceso y reconecta desde cero:** ve a
+  https://www.spotify.com/account/apps/ , busca tu app y dale
+  "Quitar acceso", luego vuelve a "Conectar con Spotify" en esta app
+  para forzar una autorización nueva con los permisos actuales.
+- Confirma que el **Redirect URI** en el Dashboard de Spotify sea
+  EXACTAMENTE igual a la URL donde tienes publicada la app (mayúsculas,
+  barra final, `https://` — todo debe coincidir letra por letra).
+
+
 
 **Creé una playlist y no aparece en la lista desplegable**
 

@@ -45,6 +45,7 @@ let manualPlaylistId = null;
 let previewPool = [];
 let roundsCount = 10;
 let snippetLength = 10;
+let gameMode = 'normal'; // 'normal' | 'sudden' | 'solo'
 
 let db = null;
 let serverTimeOffset = 0;
@@ -117,6 +118,11 @@ const btnUsePlaylistUrl = document.getElementById('btn-use-playlist-url');
 const playlistUrlStatus = document.getElementById('playlist-url-status');
 const roundsSelect = document.getElementById('rounds-select');
 const snippetSelect = document.getElementById('snippet-select');
+const modeTabs = document.querySelectorAll('.mode-tab');
+const modeHint = document.getElementById('mode-hint');
+const playlistSearchInput = document.getElementById('playlist-search-input');
+const btnSearchPlaylists = document.getElementById('btn-search-playlists');
+const playlistSearchResults = document.getElementById('playlist-search-results');
 const btnCreateRoom = document.getElementById('btn-create-room');
 const setupStatus = document.getElementById('setup-status');
 
@@ -178,6 +184,134 @@ const audioPlayer = document.getElementById('audio-player');
 const playerResultsList = document.getElementById('player-results-list');
 const playerWinnerBanner = document.getElementById('player-winner-banner');
 const btnPlayerBackJoin = document.getElementById('btn-player-back-join');
+
+// ---------- Elementos: modo Solo ----------
+const soloRoundCounter = document.getElementById('solo-round-counter');
+const btnQuitSolo = document.getElementById('btn-quit-solo');
+const soloDisc = document.getElementById('solo-disc');
+const soloDiscArt = document.getElementById('solo-disc-art');
+const soloTimerWrap = document.getElementById('solo-timer-wrap');
+const soloTimerBar = document.getElementById('solo-timer-bar');
+const soloTimerText = document.getElementById('solo-timer-text');
+const soloVolumeSlider = document.getElementById('solo-volume');
+const soloStatusText = document.getElementById('solo-status-text');
+const soloScoreText = document.getElementById('solo-score-text');
+const btnSoloManualPlay = document.getElementById('btn-solo-manual-play');
+const soloAnswerGrid = document.getElementById('solo-answer-grid');
+const soloReveal = document.getElementById('solo-reveal');
+const soloRevealBanner = document.getElementById('solo-reveal-banner');
+const soloRevealArt = document.getElementById('solo-reveal-art');
+const soloRevealTitle = document.getElementById('solo-reveal-title');
+const soloRevealArtist = document.getElementById('solo-reveal-artist');
+const btnSoloNext = document.getElementById('btn-solo-next');
+const soloAudioPlayer = document.getElementById('solo-audio-player');
+const soloFinalScore = document.getElementById('solo-final-score');
+const btnSoloPlayAgain = document.getElementById('btn-solo-play-again');
+const btnSoloNewSetup = document.getElementById('btn-solo-new-setup');
+
+soloVolumeSlider.oninput = () => { soloAudioPlayer.volume = parseFloat(soloVolumeSlider.value); };
+soloAudioPlayer.volume = parseFloat(soloVolumeSlider.value);
+
+let soloRounds = [];
+let soloIndex = 0;
+let soloScore = 0;
+let soloAnswered = false;
+let soloTimerInterval = null;
+
+function startSoloGame() {
+  soloRounds = Object.values(buildRoundsFromPool());
+  soloIndex = 0;
+  soloScore = 0;
+  soloScoreText.textContent = 'Puntaje: 0';
+  showScreen('solo-game');
+  setupSoloRound();
+}
+function setupSoloRound() {
+  soloAnswered = false;
+  const round = soloRounds[soloIndex];
+  soloRoundCounter.textContent = `Ronda ${soloIndex + 1}/${soloRounds.length}`;
+  soloReveal.classList.add('hidden');
+  soloAnswerGrid.classList.remove('hidden');
+  soloAnswerGrid.innerHTML = '';
+  btnSoloManualPlay.classList.add('hidden');
+  soloTimerWrap.classList.add('hidden');
+  clearInterval(soloTimerInterval);
+  soloDisc.classList.add('spinning');
+  soloDiscArt.classList.add('hidden');
+  soloStatusText.textContent = '🔊 ¡Escucha con atención!';
+
+  round.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'answer-btn';
+    btn.textContent = opt;
+    btn.onclick = () => submitSoloAnswer(i, round.correctIndex, round);
+    soloAnswerGrid.appendChild(btn);
+  });
+
+  soloAudioPlayer.src = round.previewUrl;
+  soloAudioPlayer.load();
+  btnSoloManualPlay.onclick = () => { soloAudioPlayer.play().catch(() => {}); };
+  soloAudioPlayer.currentTime = 0;
+  soloAudioPlayer.play().catch(() => { btnSoloManualPlay.classList.remove('hidden'); });
+
+  soloTimerWrap.classList.remove('hidden');
+  const endAt = Date.now() + snippetLength * 1000;
+  soloTimerInterval = setInterval(() => {
+    const remaining = Math.max(0, (endAt - Date.now()) / 1000);
+    soloTimerBar.style.width = Math.max(0, (remaining / snippetLength) * 100) + '%';
+    soloTimerBar.classList.toggle('urgent', remaining <= 3);
+    soloTimerText.textContent = Math.ceil(remaining) + 's';
+    if (remaining <= 0) clearInterval(soloTimerInterval);
+  }, 100);
+  clearTimeout(localSnippetTimer);
+  localSnippetTimer = setTimeout(() => {
+    if (!soloAnswered) submitSoloAnswer(-1, round.correctIndex, round);
+  }, snippetLength * 1000);
+}
+function submitSoloAnswer(optionIndex, correctIndex, round) {
+  if (soloAnswered) return;
+  soloAnswered = true;
+  clearInterval(soloTimerInterval);
+  clearTimeout(localSnippetTimer);
+  soloAudioPlayer.pause();
+  soloDisc.classList.remove('spinning');
+  soloTimerWrap.classList.add('hidden');
+  const buttons = soloAnswerGrid.querySelectorAll('.answer-btn');
+  buttons.forEach((b, i) => {
+    b.disabled = true;
+    if (i === correctIndex) b.classList.add('correct');
+    else if (i === optionIndex) b.classList.add('wrong');
+  });
+  const correct = optionIndex === correctIndex;
+  if (correct) soloScore += 1;
+  soloScoreText.textContent = `Puntaje: ${soloScore}`;
+  soloAnswerGrid.classList.add('hidden');
+  soloReveal.classList.remove('hidden');
+  soloRevealBanner.textContent = correct ? '✅ ¡Correcto!' : (optionIndex === -1 ? '⌛ Se acabó el tiempo' : '❌ Fallaste');
+  soloRevealTitle.textContent = round.trackName;
+  soloRevealArtist.textContent = round.trackArtist;
+  if (round.trackImage) { soloRevealArt.src = round.trackImage; soloRevealArt.classList.remove('hidden'); }
+  else soloRevealArt.classList.add('hidden');
+  btnSoloNext.textContent = (soloIndex + 1 >= soloRounds.length) ? 'Ver resultado' : 'Siguiente canción';
+}
+btnSoloNext.onclick = () => {
+  soloIndex += 1;
+  if (soloIndex >= soloRounds.length) {
+    soloFinalScore.textContent = `🎧 Terminaste con ${soloScore}/${soloRounds.length} aciertos.`;
+    showScreen('solo-results');
+  } else {
+    setupSoloRound();
+  }
+};
+btnQuitSolo.onclick = () => {
+  clearInterval(soloTimerInterval);
+  clearTimeout(localSnippetTimer);
+  soloAudioPlayer.pause();
+  soloFinalScore.textContent = `🎧 Terminaste con ${soloScore}/${soloRounds.length} aciertos.`;
+  showScreen('solo-results');
+};
+btnSoloPlayAgain.onclick = () => startSoloGame();
+btnSoloNewSetup.onclick = () => showScreen('host-setup');
 
 // ---------- Utilidades ----------
 function showScreen(id) {
@@ -411,6 +545,7 @@ async function fetchAllPages(url) {
   return items;
 }
 async function loadPlaylists() {
+  playlistCountStatus.classList.remove('error-text');
   playlistCountStatus.textContent = 'Buscando tus playlists…';
   try {
     const items = await fetchAllPages('https://api.spotify.com/v1/me/playlists?limit=50');
@@ -429,8 +564,9 @@ async function loadPlaylists() {
     playlistCountStatus.textContent = `Se encontraron ${items.length} playlist(s). ¿No ves la que buscas? Dale a 🔄 para recargar, o pégala manualmente abajo (debe ser pública si no es tuya).`;
   } catch (e) {
     console.error(e);
-    playlistSelect.innerHTML = '<option value="">Error cargando playlists</option>';
-    playlistCountStatus.textContent = '';
+    playlistSelect.innerHTML = '<option value="">Error — revisa el mensaje de abajo</option>';
+    playlistCountStatus.textContent = describeSpotifyError(e);
+    playlistCountStatus.classList.add('error-text');
     setupStatus.textContent = describeSpotifyError(e);
   }
 }
@@ -555,6 +691,55 @@ tabs.forEach(tab => {
   };
 });
 
+// ---------- Tabs de modo de juego ----------
+const MODE_HINTS = {
+  normal: 'El primero en acertar se lleva 100 puntos, bajando hasta un piso de 50 para los siguientes.',
+  sudden: 'Solo el primero en acertar cada canción se lleva 1 punto — nadie más suma esa ronda. Si al final hay empate, se juega una ronda extra solo entre los empatados.',
+  solo: 'Practica tú solo, sin sala ni amigos: escuchas, adivinas y ves tu puntaje al final.',
+};
+modeTabs.forEach(tab => {
+  tab.onclick = () => {
+    modeTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    gameMode = tab.dataset.mode;
+    modeHint.textContent = MODE_HINTS[gameMode] || '';
+    btnCreateRoom.textContent = gameMode === 'solo' ? 'Empezar a practicar' : 'Crear sala';
+  };
+});
+
+// ---------- Buscador de playlists por nombre ----------
+btnSearchPlaylists.onclick = async () => {
+  const q = playlistSearchInput.value.trim();
+  if (!q) return;
+  playlistSearchResults.innerHTML = '<p class="hint">Buscando…</p>';
+  try {
+    const data = await spotifyGet(`https://api.spotify.com/v1/search?type=playlist&q=${encodeURIComponent(q)}&limit=10`);
+    const items = (data.playlists && data.playlists.items) ? data.playlists.items.filter(Boolean) : [];
+    playlistSearchResults.innerHTML = '';
+    if (!items.length) {
+      playlistSearchResults.innerHTML = '<p class="hint">No se encontró nada con ese nombre.</p>';
+      return;
+    }
+    items.forEach(p => {
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.style.cursor = 'pointer';
+      const ownerName = (p.owner && p.owner.display_name) || 'alguien';
+      chip.textContent = `${p.name} — de ${ownerName} (${(p.tracks && p.tracks.total) || '?'} canciones)`;
+      chip.onclick = () => {
+        manualPlaylistId = p.id;
+        playlistUrlInput.value = (p.external_urls && p.external_urls.spotify) || p.id;
+        playlistUrlStatus.classList.remove('hidden');
+        playlistUrlStatus.textContent = `Elegiste "${p.name}". Solo va a funcionar si es tuya o colaboras en ella — si no, Spotify la rechazará con un 403 al crear la sala.`;
+      };
+      playlistSearchResults.appendChild(chip);
+    });
+  } catch (e) {
+    console.error(e);
+    playlistSearchResults.innerHTML = `<p class="hint error-text">${escapeHtml(describeSpotifyError(e))}</p>`;
+  }
+};
+
 // ---------- Construcción de rondas (multiple choice) ----------
 function buildRoundsFromPool() {
   const tracks = shuffle(previewPool).slice(0, roundsCount);
@@ -598,46 +783,54 @@ async function createUniqueRoomCode() {
   return generateRoomCode();
 }
 
+async function buildPreviewPoolFromSource() {
+  setupStatus.textContent = 'Cargando tus canciones…';
+  const rawPool = await fetchSourcePool();
+  let normalized = rawPool.map(normalizeTrack).filter(Boolean);
+  const seen = new Set();
+  normalized = normalized.filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true)));
+  if (normalized.length < 4) {
+    throw new Error('Necesitas al menos 4 canciones distintas para armar las opciones de respuesta.');
+  }
+  normalized = shuffle(normalized);
+
+  const target = Math.max(roundsCount * 3, Math.min(normalized.length, 40));
+  previewPool = [];
+  setupStatus.textContent = `Buscando audio: 0/${target}`;
+  for (const track of normalized) {
+    if (previewPool.length >= target) break;
+    const url = await findPreview(track);
+    if (url) {
+      previewPool.push({ ...track, previewUrl: url });
+      setupStatus.textContent = `Buscando audio: ${previewPool.length}/${target}`;
+    }
+  }
+  if (previewPool.length < 4) {
+    throw new Error('No se encontró suficiente audio (mínimo 4 canciones). Prueba con otra playlist.');
+  }
+  if (previewPool.length < roundsCount) roundsCount = previewPool.length;
+}
+
 // ---------- Crear sala (anfitrión) ----------
 btnCreateRoom.onclick = async () => {
-  if (!initFirebase()) {
-    setupStatus.textContent = 'Falta configurar Firebase en app.js (ver instrucciones arriba del archivo).';
-    return;
-  }
   if (selectedSource === 'playlist' && !manualPlaylistId && !playlistSelect.value) {
     setupStatus.textContent = 'Elige una playlist o pega un link.';
+    return;
+  }
+  if (gameMode !== 'solo' && !initFirebase()) {
+    setupStatus.textContent = 'Falta configurar Firebase en app.js (ver instrucciones arriba del archivo).';
     return;
   }
   btnCreateRoom.disabled = true;
   roundsCount = parseInt(roundsSelect.value, 10);
   snippetLength = parseInt(snippetSelect.value, 10);
   try {
-    setupStatus.textContent = 'Cargando tus canciones…';
-    const rawPool = await fetchSourcePool();
-    let normalized = rawPool.map(normalizeTrack).filter(Boolean);
-    const seen = new Set();
-    normalized = normalized.filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true)));
-    if (normalized.length < 4) {
-      throw new Error('Necesitas al menos 4 canciones distintas para armar las opciones de respuesta.');
-    }
-    normalized = shuffle(normalized);
+    await buildPreviewPoolFromSource();
 
-    const target = Math.max(roundsCount * 3, Math.min(normalized.length, 40));
-    previewPool = [];
-    setupStatus.textContent = `Buscando audio: 0/${target}`;
-    for (const track of normalized) {
-      if (previewPool.length >= target) break;
-      const url = await findPreview(track);
-      if (url) {
-        previewPool.push({ ...track, previewUrl: url });
-        setupStatus.textContent = `Buscando audio: ${previewPool.length}/${target}`;
-      }
-    }
-    if (previewPool.length < 4) {
-      setupStatus.textContent = 'No se encontró suficiente audio (mínimo 4 canciones). Prueba con otra playlist.';
+    if (gameMode === 'solo') {
+      startSoloGame();
       return;
     }
-    if (previewPool.length < roundsCount) roundsCount = previewPool.length;
 
     setupStatus.textContent = 'Creando sala…';
     currentRoomCode = await createUniqueRoomCode();
@@ -647,7 +840,7 @@ btnCreateRoom.onclick = async () => {
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       status: 'lobby',
       currentRound: 0,
-      settings: { roundsCount, snippetLength },
+      settings: { roundsCount, snippetLength, mode: gameMode },
       rounds,
       players: {},
     }), 8000, TIMEOUT_MSG);
@@ -682,7 +875,7 @@ function renderHostGame(room) {
   showScreen('host-game');
   const idx = room.currentRound || 0;
   const round = room.rounds[idx];
-  hostRoundCounter.textContent = `Ronda ${idx + 1}/${room.settings.roundsCount}`;
+  hostRoundCounter.textContent = round.isTiebreak ? '🔥 Ronda de desempate' : `Ronda ${idx + 1}/${room.settings.roundsCount}`;
   const totalPlayers = Object.keys(room.players || {}).length;
   const answers = round.answers || {};
   const answeredCount = Object.keys(answers).length;
@@ -817,33 +1010,103 @@ function scheduleFinalize(index, playAt) {
 }
 async function finalizeRound(index) {
   try {
+    const roundSnap = await roomRef.child('rounds/' + index).once('value');
+    const round = roundSnap.val() || {};
     const answersSnap = await roomRef.child('rounds/' + index + '/answers').once('value');
     const answers = answersSnap.val() || {};
     const playersSnap = await roomRef.child('players').once('value');
     const playersVal = playersSnap.val() || {};
-    // Orden por velocidad: quien respondió correcto más rápido se lleva
-    // más puntos (100, 90, 80… hasta un piso de 50). Fallar o no
-    // responder = 0.
-    const correctEntries = Object.entries(answers)
-      .filter(([, a]) => a && a.correct)
-      .sort((a, b) => (a[1].answeredAt || 0) - (b[1].answeredAt || 0));
+    const settingsSnap = await roomRef.child('settings').once('value');
+    const settings = settingsSnap.val() || {};
     const updates = {};
-    correctEntries.forEach(([pid], rank) => {
-      const pts = computeRankPoints(rank);
-      updates['rounds/' + index + '/answers/' + pid + '/points'] = pts;
-      const cur = (playersVal[pid] && playersVal[pid].score) || 0;
-      updates['players/' + pid + '/score'] = cur + pts;
-    });
-    Object.entries(answers).forEach(([pid, a]) => {
-      if (!a || !a.correct) {
-        updates['rounds/' + index + '/answers/' + pid + '/points'] = 0;
+
+    if (round.isTiebreak) {
+      // Ronda de desempate: solo cuenta el primero en acertar ENTRE los
+      // jugadores empatados; el resto (aunque acierte) no suma nada.
+      const eligible = new Set(round.tiebreakIds || []);
+      const correctEligible = Object.entries(answers)
+        .filter(([pid, a]) => a && a.correct && eligible.has(pid))
+        .sort((a, b) => (a[1].answeredAt || 0) - (b[1].answeredAt || 0));
+      Object.keys(answers).forEach(pid => { updates['rounds/' + index + '/answers/' + pid + '/points'] = 0; });
+      if (correctEligible.length) {
+        const winnerId = correctEligible[0][0];
+        updates['rounds/' + index + '/answers/' + winnerId + '/points'] = 1;
+        const cur = (playersVal[winnerId] && playersVal[winnerId].score) || 0;
+        updates['players/' + winnerId + '/score'] = cur + 1;
       }
-    });
+    } else if (settings.mode === 'sudden') {
+      // Muerte súbita: solo el primero en acertar se lleva 1 punto esa
+      // ronda; nadie más suma, aunque también haya acertado.
+      const correctEntries = Object.entries(answers)
+        .filter(([, a]) => a && a.correct)
+        .sort((a, b) => (a[1].answeredAt || 0) - (b[1].answeredAt || 0));
+      Object.keys(answers).forEach(pid => { updates['rounds/' + index + '/answers/' + pid + '/points'] = 0; });
+      if (correctEntries.length) {
+        const [winnerId] = correctEntries[0];
+        updates['rounds/' + index + '/answers/' + winnerId + '/points'] = 1;
+        const cur = (playersVal[winnerId] && playersVal[winnerId].score) || 0;
+        updates['players/' + winnerId + '/score'] = cur + 1;
+      }
+    } else {
+      // Modo normal: orden por velocidad, quien respondió correcto más
+      // rápido se lleva más puntos (100, 90, 80… hasta un piso de 50).
+      const correctEntries = Object.entries(answers)
+        .filter(([, a]) => a && a.correct)
+        .sort((a, b) => (a[1].answeredAt || 0) - (b[1].answeredAt || 0));
+      correctEntries.forEach(([pid], rank) => {
+        const pts = computeRankPoints(rank);
+        updates['rounds/' + index + '/answers/' + pid + '/points'] = pts;
+        const cur = (playersVal[pid] && playersVal[pid].score) || 0;
+        updates['players/' + pid + '/score'] = cur + pts;
+      });
+      Object.entries(answers).forEach(([pid, a]) => {
+        if (!a || !a.correct) {
+          updates['rounds/' + index + '/answers/' + pid + '/points'] = 0;
+        }
+      });
+    }
     updates['status'] = 'reveal';
     await roomRef.update(updates);
   } catch (e) {
     console.error(e);
   }
+}
+// Si el modo es "muerte súbita" y al terminar hay empate en el primer
+// lugar, arma una ronda extra solo para desempatar entre los
+// empatados en vez de terminar el juego de una.
+async function finishGameOrTiebreak(room) {
+  if (room.settings && room.settings.mode === 'sudden') {
+    const players = room.players || {};
+    const vals = Object.entries(players);
+    const topScore = vals.length ? Math.max(...vals.map(([, p]) => p.score || 0)) : 0;
+    const tied = vals.filter(([, p]) => (p.score || 0) === topScore && topScore > 0);
+    if (tied.length > 1) {
+      const usedNames = new Set(Object.values(room.rounds || {}).map(r => r.trackName));
+      const candidate = previewPool.find(t => !usedNames.has(t.name));
+      if (candidate) {
+        const newIndex = Object.keys(room.rounds || {}).length;
+        const others = previewPool.filter(t => t.id !== candidate.id && t.name !== candidate.name);
+        let names = shuffle(others).slice(0, 3).map(t => t.name);
+        while (names.length < 3) names.push('(otra canción)');
+        const options = shuffle([candidate.name, ...names]);
+        const correctIndex = options.indexOf(candidate.name);
+        await roomRef.child('rounds/' + newIndex).set({
+          trackName: candidate.name,
+          trackArtist: candidate.artists.join(', '),
+          trackImage: candidate.image || '',
+          previewUrl: candidate.previewUrl,
+          options,
+          correctIndex,
+          isTiebreak: true,
+          tiebreakIds: tied.map(([pid]) => pid),
+        });
+        await roomRef.child('settings/roundsCount').set(newIndex + 1);
+        await startRound(newIndex);
+        return;
+      }
+    }
+  }
+  await roomRef.update({ status: 'finished' });
 }
 btnNextRound.onclick = async () => {
   btnNextRound.disabled = true;
@@ -852,7 +1115,7 @@ btnNextRound.onclick = async () => {
     const room = snap.val();
     const next = (room.currentRound || 0) + 1;
     if (next >= room.settings.roundsCount) {
-      await roomRef.update({ status: 'finished' });
+      await finishGameOrTiebreak(room);
     } else {
       await startRound(next);
     }
@@ -880,7 +1143,14 @@ btnPlayAgainHost.onclick = async () => {
     const resetPlayers = {};
     Object.keys(playersVal).forEach(pid => { resetPlayers[pid] = { ...playersVal[pid], score: 0 }; });
     lastPlayedRoundHost = -1;
-    await roomRef.update({ rounds, players: resetPlayers, status: 'lobby', currentRound: 0, playAt: null });
+    await roomRef.update({
+      rounds,
+      players: resetPlayers,
+      status: 'lobby',
+      currentRound: 0,
+      playAt: null,
+      settings: { roundsCount, snippetLength, mode: gameMode },
+    });
     showScreen('host-lobby');
   } finally {
     btnPlayAgainHost.disabled = false;
@@ -982,7 +1252,7 @@ function renderPlayerLobby(players) {
 function setupPlayerRound(room, index) {
   answered = false;
   const round = room.rounds[index];
-  playerRoundCounter.textContent = `Ronda ${index + 1}/${room.settings.roundsCount}`;
+  playerRoundCounter.textContent = round.isTiebreak ? '🔥 Ronda de desempate' : `Ronda ${index + 1}/${room.settings.roundsCount}`;
   playerReveal.classList.add('hidden');
   playerAnswerGrid.classList.remove('hidden');
   playerAnswerGrid.innerHTML = '';

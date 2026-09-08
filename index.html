@@ -74,7 +74,24 @@
           <button id="btn-use-playlist-url" class="btn btn--ghost">Usar</button>
         </div>
         <p id="playlist-url-status" class="hint hidden"></p>
+
+        <p class="hint" style="margin-top:14px;">O búscala por nombre — <strong>ojo:</strong> solo vas a poder usarla si es tuya o si colaboras en ella (así sea pública). Si es de un amigo, pídele que te agregue como colaborador de esa playlist en Spotify:</p>
+        <div class="add-player">
+          <input id="playlist-search-input" type="text" placeholder="Nombre de la playlist…" />
+          <button id="btn-search-playlists" class="btn btn--ghost">Buscar</button>
+        </div>
+        <div id="playlist-search-results" class="chips chips--selectable"></div>
       </div>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">Modo de juego</span>
+      <div class="tabs" role="tablist">
+        <button class="tab mode-tab active" data-mode="normal">Normal (puntos por velocidad)</button>
+        <button class="tab mode-tab" data-mode="sudden">Muerte súbita</button>
+        <button class="tab mode-tab" data-mode="solo">Solo (practicar sin sala)</button>
+      </div>
+      <p id="mode-hint" class="hint">El primero en acertar se lleva 100 puntos, bajando hasta un piso de 50 para los siguientes.</p>
     </div>
 
     <div class="field-row">
@@ -100,6 +117,55 @@
 
     <button id="btn-create-room" class="btn btn--primary btn--wide">Crear sala</button>
     <p id="setup-status" class="hint"></p>
+  </section>
+
+  <!-- PANTALLA: JUEGO EN SOLITARIO -->
+  <section id="screen-solo-game" class="screen">
+    <div class="game-topbar">
+      <span id="solo-round-counter" class="round-counter">Ronda 1/10</span>
+      <button id="btn-quit-solo" class="link-btn">Terminar</button>
+    </div>
+
+    <div class="disc-wrap">
+      <div id="solo-disc" class="disc">
+        <img id="solo-disc-art" class="disc__art hidden" alt="" />
+        <div class="disc__label"></div>
+      </div>
+    </div>
+
+    <div id="solo-timer-wrap" class="timer-wrap hidden">
+      <div class="timer-bar-track"><div id="solo-timer-bar" class="timer-bar-fill"></div></div>
+      <span id="solo-timer-text" class="timer-text"></span>
+    </div>
+
+    <div class="volume-control">
+      <span>🔊</span>
+      <input id="solo-volume" type="range" min="0" max="1" step="0.05" value="0.8" />
+    </div>
+
+    <p id="solo-status-text" class="hint" style="text-align:center;">Prepárate…</p>
+    <p id="solo-score-text" class="hint" style="text-align:center;">Puntaje: 0</p>
+    <button id="btn-solo-manual-play" class="btn btn--ghost hidden">🔊 ¿No escuchas nada? Toca aquí</button>
+
+    <div id="solo-answer-grid" class="answer-grid"></div>
+
+    <div id="solo-reveal" class="reveal-card hidden">
+      <p id="solo-reveal-banner" class="reveal-banner"></p>
+      <img id="solo-reveal-art" class="reveal-art hidden" alt="" />
+      <p id="solo-reveal-title" class="reveal-title"></p>
+      <p id="solo-reveal-artist" class="reveal-artist"></p>
+      <button id="btn-solo-next" class="btn btn--primary btn--wide">Siguiente canción</button>
+    </div>
+
+    <audio id="solo-audio-player" preload="auto"></audio>
+  </section>
+
+  <!-- PANTALLA: RESULTADOS SOLO -->
+  <section id="screen-solo-results" class="screen">
+    <h2 class="title title--sm">¡Terminaste!</h2>
+    <p id="solo-final-score" class="winner-banner"></p>
+    <button id="btn-solo-play-again" class="btn btn--primary btn--wide">Jugar otra vez</button>
+    <button id="btn-solo-new-setup" class="btn btn--ghost btn--wide">Nueva configuración</button>
   </section>
 
   <!-- PANTALLA: SALA DE ESPERA (ANFITRIÓN) -->

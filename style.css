@@ -387,3 +387,5 @@ body {
   color: var(--gold);
   margin: 0 0 6px 0;
 }
+
+.error-text { color: var(--coral); font-weight: 600; }
