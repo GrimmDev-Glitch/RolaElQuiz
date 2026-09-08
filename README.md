@@ -30,6 +30,11 @@ para un proyecto entre amigos. Por eso el buscador de playlists de
 esta app (que te ayuda a encontrarlas por nombre) deja claro que solo
 vas a poder usar el resultado si es tuya o si te agregan como
 colaborador — no hay forma de rodear esta regla de Spotify con código.
+Ni siquiera usando un método de autenticación distinto (como "Client
+Credentials", sin login de usuario): en el foro oficial de
+desarrolladores de Spotify alguien probó exactamente eso y la
+respuesta fue "necesitas 250,000 usuarios, no es broma" — confirmado,
+no hay atajo técnico posible para una app pequeña.
 
 ## Paso 1: crear tu app de Spotify (una sola vez, gratis)
 
@@ -192,6 +197,40 @@ celular esté perfectamente sincronizado.
   su link directamente en el campo manual.
 
 ## Solución de problemas
+
+**403 en una playlist que confirmaste que SÍ es tuya (no Blend), tanto
+por el link como por el desplegable**
+
+Este es el caso más difícil de diagnosticar porque descarta las
+causas obvias (cuenta, Premium, playlist ajena). Con la evidencia que
+tengo hasta ahora, sospecho que es un bug del lado de Spotify en su
+endpoint nuevo (`/playlists/{id}/items`) — hay bastantes reportes de
+otros desarrolladores con problemas similares justo desde la
+migración de 2026. Cosas para probar, en orden:
+
+1. Cierra sesión en esta app y vuelve a conectar (renueva el token
+   por si acaso).
+2. Cambia esa playlist de privada a pública (o viceversa) desde la
+   app oficial de Spotify, y vuelve a intentar.
+3. Prueba con una playlist nueva, chiquita (2-3 canciones), creada
+   desde cero, a ver si el problema es con playlists viejas
+   específicamente.
+4. Abre las herramientas de desarrollador del navegador (F12 →
+   pestaña "Console" o "Network"), repite la acción, y busca la
+   respuesta real que da Spotify — a veces trae más detalle del que
+   nos deja ver el mensaje genérico "Forbidden".
+
+**"Error cargando playlists" con un mensaje de fallo de conexión, aun
+con buen internet**
+
+Le subí los reintentos automáticos a 4 intentos con más espera entre
+cada uno, y agregué una pequeña pausa antes del primer intento justo
+después de conectar con Spotify. Si sigue pasando exactamente en esa
+llamada (y no en las demás), puede ser algo muy específico de tu
+navegador — prueba en una ventana de incógnito o en otro navegador
+distinto para descartarlo del todo.
+
+
 
 **"Error cargando playlists" incluso teniendo Spotify Premium**
 

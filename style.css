@@ -389,3 +389,7 @@ body {
 }
 
 .error-text { color: var(--coral); font-weight: 600; }
+
+/* Paginación del buscador de playlists */
+.pager { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 6px; }
+.btn--sm { padding: 6px 12px; font-size: 0.8rem; }

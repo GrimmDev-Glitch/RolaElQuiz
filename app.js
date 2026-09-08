@@ -513,8 +513,8 @@ async function spotifyGet(url, attempt) {
     // Fallo de RED (no llegó a responder Spotify) — casi siempre es algo
     // pasajero (wifi inestable, un bloqueador de extensión, un hipo de
     // conexión). Reintenta un par de veces antes de rendirse.
-    if (attempt < 3) {
-      await sleep(600 * attempt);
+    if (attempt < 4) {
+      await sleep(700 * attempt);
       return spotifyGet(url, attempt + 1);
     }
     throw networkErr;
@@ -661,8 +661,8 @@ async function fetchSourcePool() {
       const isManual = !!manualPlaylistId;
       const err = new Error(
         isManual
-          ? 'No se pudo leer esa playlist (403). Prueba eligiéndola directo de la lista desplegable "Mis playlists" en vez de pegar el link, o revisa que tu cuenta de anfitrión tenga Spotify Premium (obligatorio desde 2026 para apps en modo desarrollo — sin eso, TODAS las llamadas fallan con 403).'
-          : 'No se pudo leer esa playlist (403). Revisa que tu cuenta de anfitrión tenga Spotify Premium (obligatorio desde 2026 para apps en modo desarrollo), o dale a 🔄 para recargar la lista de playlists.'
+          ? 'No se pudo leer esa playlist (403). Prueba eligiéndola directo de la lista desplegable "Mis playlists" en vez de pegar el link. Si YA confirmaste que es tuya y de todos modos falla: (1) cierra sesión y vuelve a conectar para renovar el token, por si quedó viejo; (2) prueba cambiando la playlist de privada a pública (o viceversa) y vuelve a intentar — hay bugs reportados de Spotify justo en este endpoint desde su migración de 2026; (3) revisa la consola del navegador (F12) por si el mensaje de error trae más detalle.'
+          : 'No se pudo leer esa playlist (403), lo cual es raro tratándose de una playlist tuya de la lista desplegable. Prueba: (1) cerrar sesión y volver a conectar para renovar el token; (2) cambiar la playlist de privada a pública (o viceversa) y reintentar — hay bugs reportados de Spotify en este endpoint desde su migración de 2026; (3) recargar la lista (🔄).'
       );
       err.status = 403;
       err.customMessage = true;
@@ -728,17 +728,17 @@ modeTabs.forEach(tab => {
   };
 });
 
-// ---------- Buscador de playlists por nombre ----------
-btnSearchPlaylists.onclick = async () => {
-  const q = playlistSearchInput.value.trim();
-  if (!q) return;
+// ---------- Buscador de playlists por nombre (con paginación) ----------
+let playlistSearchQuery = '';
+async function runPlaylistSearch(offset) {
   playlistSearchResults.innerHTML = '<p class="hint">Buscando…</p>';
   try {
-    const data = await spotifyGet(`https://api.spotify.com/v1/search?type=playlist&q=${encodeURIComponent(q)}&limit=10`);
+    const data = await spotifyGet(`https://api.spotify.com/v1/search?type=playlist&q=${encodeURIComponent(playlistSearchQuery)}&limit=10&offset=${offset}`);
     const items = (data.playlists && data.playlists.items) ? data.playlists.items.filter(Boolean) : [];
+    const total = (data.playlists && data.playlists.total) || 0;
     playlistSearchResults.innerHTML = '';
     if (!items.length) {
-      playlistSearchResults.innerHTML = '<p class="hint">No se encontró nada con ese nombre.</p>';
+      playlistSearchResults.innerHTML = `<p class="hint">No se encontró nada${offset > 0 ? ' en esta página' : ' con ese nombre'}.</p>`;
       return;
     }
     items.forEach(p => {
@@ -755,10 +755,35 @@ btnSearchPlaylists.onclick = async () => {
       };
       playlistSearchResults.appendChild(chip);
     });
+    const pager = document.createElement('div');
+    pager.className = 'pager';
+    const btnPrev = document.createElement('button');
+    btnPrev.className = 'btn btn--ghost btn--sm';
+    btnPrev.textContent = '← Anterior';
+    btnPrev.disabled = offset === 0;
+    btnPrev.onclick = () => runPlaylistSearch(Math.max(0, offset - 10));
+    const pageLabel = document.createElement('span');
+    pageLabel.className = 'hint';
+    pageLabel.textContent = `Página ${Math.floor(offset / 10) + 1}`;
+    const btnNext = document.createElement('button');
+    btnNext.className = 'btn btn--ghost btn--sm';
+    btnNext.textContent = 'Siguiente →';
+    btnNext.disabled = items.length < 10 || (offset + 10) >= total;
+    btnNext.onclick = () => runPlaylistSearch(offset + 10);
+    pager.appendChild(btnPrev);
+    pager.appendChild(pageLabel);
+    pager.appendChild(btnNext);
+    playlistSearchResults.appendChild(pager);
   } catch (e) {
     console.error(e);
     playlistSearchResults.innerHTML = `<p class="hint error-text">${escapeHtml(describeSpotifyError(e))}</p>`;
   }
+}
+btnSearchPlaylists.onclick = () => {
+  const q = playlistSearchInput.value.trim();
+  if (!q) return;
+  playlistSearchQuery = q;
+  runPlaylistSearch(0);
 };
 
 // ---------- Construcción de rondas (multiple choice) ----------
@@ -1435,6 +1460,7 @@ btnLogout.onclick = logout;
   const loggedIn = wasHostLogin ? await handleRedirectIfPresent() : false;
   if (loggedIn) {
     showScreen('host-setup');
+    await sleep(400);
     loadPlaylists();
   } else {
     showScreen('role');
