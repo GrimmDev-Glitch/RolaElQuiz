@@ -184,7 +184,14 @@ celular esté perfectamente sincronizado.
   nueva, ya que el código vive en su navegador).
 - No todas las canciones tienen un preview disponible en iTunes — la
   app busca de más para compensar las que no encuentra; hacen falta
-  al menos 4 canciones con audio para poder armar las opciones.
+  al menos 4 canciones con audio para poder armar las opciones. Desde
+  hace poco, además, la app verifica que el título Y el artista del
+  resultado de iTunes coincidan de verdad con la canción de Spotify
+  antes de usarlo — si no encuentra un artista que coincida, prefiere
+  no ponerle audio a esa canción en vez de arriesgarse a poner la de
+  otro artista con el mismo título (esto pasaba antes con títulos
+  cortos o genéricos, tipo canciones que comparten nombre con algo de
+  otro artista mucho más popular).
 - El anfitrión debe mantener la pestaña abierta y en primer plano
   durante la partida — es quien controla el avance de las rondas y
   calcula los puntajes.

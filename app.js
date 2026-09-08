@@ -685,19 +685,77 @@ function itunesSearch(term) {
       resolve(data);
       cleanup();
     };
-    script.src = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&limit=5&callback=${cbName}`;
+    script.src = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&limit=10&callback=${cbName}`;
     script.onerror = () => { if (!done) { done = true; resolve(null); cleanup(); } };
     document.body.appendChild(script);
     setTimeout(() => { if (!done) { done = true; resolve(null); cleanup(); } }, 6000);
   });
 }
-async function findPreview(track) {
-  const term = `${track.artists[0] || ''} ${track.name}`.trim();
-  const data = await itunesSearch(term);
-  if (data && data.results) {
-    const hit = data.results.find(r => r.previewUrl);
-    if (hit) return hit.previewUrl;
+// Normaliza títulos/artistas para comparar: minúsculas, sin acentos,
+// sin sufijos de "(feat. X)", "- Remix", "- Live", etc.
+function normalizeForMatch(str) {
+  return (str || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\((feat|ft|with)[^)]*\)/gi, '')
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/\s*-\s*(remix|live|radio edit|re-?master(ed)?( \d{2,4})?|mono|stereo|single|deluxe( edition)?|version|edit|acoustic|instrumental)\b.*$/gi, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+// Entre los resultados de iTunes, elige el que de verdad corresponde a
+// la canción y artista que buscamos — no solo el primero con audio.
+// Esto evita que, por ejemplo, buscar "Telescope" de un rapero termine
+// devolviendo una canción sin relación solo porque también se llama
+// "Telescope" y tenía preview disponible.
+function findBestItunesMatch(results, targetName, targetArtist) {
+  const normName = normalizeForMatch(targetName);
+  const normArtist = normalizeForMatch(targetArtist);
+  const candidates = (results || []).filter(r => r.previewUrl);
+
+  // Exige que el artista coincida al menos parcialmente — esto es lo
+  // que evita el caso "Telescope": nunca devolvemos la canción de
+  // OTRO artista solo porque el título es igual. Si ningún resultado
+  // tiene un artista parecido, preferimos no usar audio para esa
+  // canción antes que arriesgarnos a poner la equivocada.
+  const artistMatches = candidates.filter(r => {
+    const rArtist = normalizeForMatch(r.artistName);
+    if (!normArtist || !rArtist) return false;
+    return rArtist === normArtist || rArtist.includes(normArtist) || normArtist.includes(rArtist);
+  });
+  if (!artistMatches.length) return null;
+
+  let best = null;
+  let bestScore = -Infinity;
+  for (const r of artistMatches) {
+    const rName = normalizeForMatch(r.trackName);
+    let score = 0;
+    if (rName === normName) score += 10;
+    else if (normName && (rName.includes(normName) || normName.includes(rName))) score += 5;
+    else {
+      const a = new Set(normName.split(' ').filter(Boolean));
+      const b = new Set(rName.split(' ').filter(Boolean));
+      const shared = [...a].filter(w => b.has(w)).length;
+      score += shared - Math.max(a.size, b.size, 1);
+    }
+    if (score > bestScore) { bestScore = score; best = r; }
   }
+  // El artista ya coincidió (filtro de arriba); con algo de similitud
+  // razonable en el título alcanza.
+  return bestScore >= 2 ? best : null;
+}
+async function findPreview(track) {
+  const artist = track.artists[0] || '';
+  const term = `${artist} ${track.name}`.trim();
+  const data = await itunesSearch(term);
+  const best = findBestItunesMatch(data && data.results, track.name, artist);
+  if (best) return best.previewUrl;
+  // Si la búsqueda combinada no encontró una coincidencia confiable,
+  // prueba solo con el nombre de la canción (a veces el nombre del
+  // artista no viene escrito igual en Spotify que en iTunes).
+  const data2 = await itunesSearch(track.name);
+  const best2 = findBestItunesMatch(data2 && data2.results, track.name, artist);
+  if (best2) return best2.previewUrl;
   return null;
 }
 
