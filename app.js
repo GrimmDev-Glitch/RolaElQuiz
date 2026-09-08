@@ -503,8 +503,22 @@ function logout() {
 }
 
 // ---------- Spotify Web API ----------
-async function spotifyGet(url) {
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+async function spotifyGet(url, attempt) {
+  attempt = attempt || 1;
+  let res;
+  try {
+    res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  } catch (networkErr) {
+    // Fallo de RED (no llegó a responder Spotify) — casi siempre es algo
+    // pasajero (wifi inestable, un bloqueador de extensión, un hipo de
+    // conexión). Reintenta un par de veces antes de rendirse.
+    if (attempt < 3) {
+      await sleep(600 * attempt);
+      return spotifyGet(url, attempt + 1);
+    }
+    throw networkErr;
+  }
   if (!res.ok) {
     let detail = '';
     try {
@@ -530,7 +544,7 @@ function describeSpotifyError(e) {
     return 'Spotify está limitando las solicitudes (demasiadas seguidas). Espera unos segundos y vuelve a intentar.';
   }
   if (e instanceof TypeError) {
-    return 'No se pudo conectar con Spotify (revisa tu internet o si algo está bloqueando la solicitud).';
+    return 'No se pudo conectar con Spotify después de varios intentos. Esto normalmente es la conexión (wifi inestable, datos móviles débiles) o una extensión del navegador bloqueando la solicitud — no tu cuenta ni el modo desarrollo. Prueba: 1) dale a 🔄 para reintentar, 2) revisa si tienes uBlock/AdGuard/una VPN activa y desactívala para este sitio, 3) prueba desde otra red (datos móviles en vez de wifi, o viceversa).';
   }
   return (e && e.message) || 'Ocurrió un error inesperado.';
 }
