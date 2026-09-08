@@ -579,9 +579,13 @@ async function loadPlaylists() {
   } catch (e) {
     console.error(e);
     playlistSelect.innerHTML = '<option value="">Error — revisa el mensaje de abajo</option>';
-    playlistCountStatus.textContent = describeSpotifyError(e);
+    let msg = describeSpotifyError(e);
+    if (e instanceof TypeError) {
+      msg += ' Mientras tanto: copia el link de cada playlist o Blend desde la app de Spotify (Compartir → Copiar link) y pégalo en el campo de abajo — ese SÍ te está funcionando (usa una conexión distinta a esta lista). Ojo: el buscador de aquí abajo solo encuentra playlists PÚBLICAS del catálogo de Spotify, no tu biblioteca privada, así que para tus playlists propias y Blends el link manual es la única vía mientras esto no cargue. Para confirmar que es algo local a tu navegador, prueba abrir esta página en una ventana de incógnito con las extensiones desactivadas.';
+    }
+    playlistCountStatus.textContent = msg;
     playlistCountStatus.classList.add('error-text');
-    setupStatus.textContent = describeSpotifyError(e);
+    setupStatus.textContent = '';
   }
 }
 // Acepta un link (https://open.spotify.com/playlist/ID?si=...),
