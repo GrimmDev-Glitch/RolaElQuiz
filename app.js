@@ -622,8 +622,12 @@ function normalizeTrack(t) {
 // colaboras, Spotify ya solo devuelve los metadatos (sin canciones),
 // sin importar si son públicas o no.
 async function fetchPlaylistTracks(playlistId) {
-  const fields = encodeURIComponent('items(item(id,name,artists(name),album(images))),next');
-  const first = await spotifyGet(`https://api.spotify.com/v1/playlists/${playlistId}/items?limit=100&fields=${fields}`);
+  // Ojo: dejamos de usar el parámetro "fields" a propósito — el filtro
+  // de este endpoint nuevo (/items) tiene reportes de bugs (devuelve
+  // vacío o falla con ciertos filtros anidados). Pedimos la respuesta
+  // completa y sacamos lo que necesitamos nosotros mismos en el
+  // navegador; cuesta un poco más de datos pero es mucho más confiable.
+  const first = await spotifyGet(`https://api.spotify.com/v1/playlists/${playlistId}/items?limit=100`);
   if (!('items' in first)) {
     const err = new Error(
       'Esta playlist no es tuya ni eres colaborador, así que Spotify ya no permite leer sus canciones desde la API — así sea pública. Esto cambió con una actualización de Spotify de 2026: ahora solo se pueden leer canciones de playlists propias o donde colabores. Pídele a quien la creó que te agregue como colaborador, o usa una playlist tuya (o tus Me Gusta).'
@@ -639,7 +643,10 @@ async function fetchPlaylistTracks(playlistId) {
     items = items.concat(data.items || []);
     next = data.next;
   }
-  return items.map(i => i.item).filter(Boolean);
+  // "item" es el nombre nuevo del campo; "track" es el viejo, que
+  // Spotify todavía manda en paralelo durante su ventana de transición
+  // — aceptamos cualquiera de los dos por si acaso.
+  return items.map(i => i.item || i.track).filter(Boolean);
 }
 async function fetchSourcePool() {
   if (selectedSource === 'liked') {
