@@ -142,7 +142,7 @@ actualizar también el Redirect URI en el Dashboard de Spotify.
 
 ## Modos de juego
 
-Al preparar la sala puedes elegir entre tres modos:
+Al preparar la sala puedes elegir entre cuatro modos:
 
 - **Normal** — puntos por velocidad, como se explica abajo (100 a 50).
 - **Muerte súbita** — cada ronda vale igual: solo quien acierta
@@ -151,17 +151,66 @@ Al preparar la sala puedes elegir entre tres modos:
   empatados en primer lugar, se juega automáticamente una ronda
   extra SOLO entre los empatados para desempatar (quien acierte
   primero ahí, gana).
+- **Progresivo** — cada canción empieza sonando solo 1 segundo. Si no
+  la reconoces todavía, cada jugador tiene su propio botón "Escuchar
+  más" para que le suene un poco más — pero entre más escuchas, menos
+  vale acertar:
+
+  | Escuchaste hasta... | Vale si aciertas |
+  |---|---|
+  | 1 segundo | 100 pts |
+  | 3 segundos | 80 pts |
+  | 6 segundos | 60 pts |
+  | 10 segundos | 40 pts |
+  | 15 segundos | 20 pts |
+
+  Cada jugador avanza a su propio ritmo — no está sincronizado como
+  en los otros modos. La portada del álbum también se ve borrosa al
+  principio y se va aclarando con cada "Escuchar más", como pista
+  visual extra. Después de la última etapa (15s) se deja sonar el
+  resto del fragmento completo en vez de cortarlo en seco, por si
+  todavía no la reconoces.
+- **Eliminación** — puntaje normal por velocidad, pero cada cierto
+  número de rondas (elegible: cada 2, 3 o 4) el jugador con menos
+  puntos entre los que siguen en pie queda eliminado — puede seguir
+  viendo la partida, pero ya no responde. Si hay empate en último
+  lugar, quedan eliminados todos los empatados (a menos que eso
+  dejara la sala sin nadie). Gana quien quede de último en pie, o
+  quien tenga más puntos cuando se acaben las rondas.
+- **Apuesta doble o nada** — antes de responder cada ronda, cada
+  jugador puede apostar. Si apuestas y aciertas, te llevas el
+  DOBLE de los puntos de esa ronda; si apuestas y fallas, pierdes
+  100 puntos de tu marcador (nunca baja de 0). No apostar es la
+  opción seguro-de-siempre, con el puntaje normal por velocidad.
 - **Solo** — para practicar sin crear una sala ni necesitar amigos:
   eliges tu fuente de canciones normal, le das "Empezar a practicar"
   y juegas tú mismo desde el mismo dispositivo, viendo tu puntaje al
   final. No usa Firebase para nada, así que funciona incluso sin
-  configurar ese paso.
+  configurar ese paso. (Los modos Progresivo, Eliminación y Apuesta
+  todavía no están disponibles en solitario, solo en salas con
+  amigos — ahí no tendría con quién competir.)
+
+## Otras mejoras
+
+- **Racha de aciertos** 🔥 — si vas encadenando respuestas correctas,
+  tu nombre muestra "🔥N" en el leaderboard.
+- **Emoji por jugador** — cada quien recibe un emoji al azar al
+  unirse (se mantiene igual si recarga o vuelve a entrar), para
+  identificarse rápido a simple vista.
+- **Datos curiosos al final** — la pantalla de resultados agrega
+  automáticamente cosas como la ronda que se resolvió más rápido, la
+  canción que nadie adivinó, y quién fue el más veloz en general.
+- **Confeti y sonidos** — al ganar la partida cae confeti en pantalla,
+  y hay pitidos cortos de acierto/error/avance (generados en el
+  propio navegador, no son archivos de audio).
+- **Leaderboard animado** — las barras de puntaje se llenan con una
+  animación cada vez que se actualiza, como una pequeña carrera.
 
 ## Puntaje
 
-Por cada ronda, quienes responden correcto se ordenan por qué tan
-rápido contestaron (no por tiempo absoluto, sino por quién fue
-primero, segundo, tercero...):
+Por cada ronda del modo **Normal**, quienes responden correcto se
+ordenan por qué tan rápido contestaron (no por tiempo absoluto, sino
+por quién fue primero, segundo, tercero...):
 
 | Orden en acertar | Puntos |
 |---|---|

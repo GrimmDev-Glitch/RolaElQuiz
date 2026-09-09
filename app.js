@@ -72,32 +72,168 @@ const RANK_POINTS_FLOOR = 50;
 function computeRankPoints(rank) {
   return Math.max(RANK_POINTS_FLOOR, RANK_POINTS_START - rank * RANK_POINTS_STEP);
 }
+// Modo progresivo: cada canción empieza sonando 1 segundo; cada vez que
+// el jugador le da "escuchar más" avanza a la siguiente etapa (y baja
+// el puntaje posible que puede ganar si acierta).
+const PROGRESSIVE_STAGES = [1, 3, 6, 10, 15]; // segundos acumulados desde el inicio
+const PROGRESSIVE_POINTS = [100, 80, 60, 40, 20];
+// Después de la última etapa (15s) se deja sonar el resto del preview
+// completo (hasta ~30s) en vez de cortarlo en seco — así quien ya usó
+// todos los "escuchar más" y sigue sin saberla, al menos tiene la
+// canción completa para intentarlo, con el puntaje mínimo como precio.
+const PROGRESSIVE_ROUND_BUDGET_SECS = 35;
+
+const PLAYER_EMOJIS = ['🦊', '🐼', '🐸', '🐵', '🦁', '🐨', '🐯', '🦄', '🐙', '🦖', '🐳', '🦋', '🐺', '🦉', '🐝'];
+function pickPlayerEmoji() {
+  return PLAYER_EMOJIS[Math.floor(Math.random() * PLAYER_EMOJIS.length)];
+}
+function playerLabel(p, isMe) {
+  const emoji = p.eliminated ? '💀 ' : (p.emoji ? p.emoji + ' ' : '');
+  const streak = (p.streak || 0) >= 2 ? ` <span class="streak-badge">🔥${p.streak}</span>` : '';
+  return `${emoji}${escapeHtml(p.name)}${isMe ? ' (tú)' : ''}${streak}`;
+}
 function winnerMessage(players) {
   const vals = Object.values(players || {});
   if (!vals.length) return '';
   const topScore = Math.max(...vals.map(p => p.score || 0));
   if (topScore <= 0) return '🎧 Nadie se llevó puntos esta vez — ¡a afinar el oído para la próxima!';
-  const winners = vals.filter(p => (p.score || 0) === topScore).map(p => p.name);
+  const winners = vals.filter(p => (p.score || 0) === topScore).map(p => (p.emoji ? p.emoji + ' ' : '') + p.name);
   return winners.length === 1
     ? `🏆 ¡Felicidades, ${winners[0]}, eres el más rolo!`
     : `🏆 ¡Felicidades, ${winners.join(' y ')}, son los más rolos!`;
 }
+// Datos curiosos del final de la partida, calculados a partir de las
+// rondas ya jugadas (no necesita nada nuevo del servidor).
+function computeFunFactsHtml(room) {
+  const rounds = room.rounds || {};
+  const players = room.players || {};
+  let fastestRound = null;
+  let fastestMs = Infinity;
+  let noOneGotIt = null;
+  const firstCorrectCount = {};
+  Object.values(rounds).forEach(round => {
+    if (round.isTiebreak) return;
+    const answers = round.answers || {};
+    const answerEntries = Object.entries(answers);
+    if (!answerEntries.length) return;
+    const correct = answerEntries
+      .filter(([, a]) => a && a.correct)
+      .sort((a, b) => (a[1].answeredAt || 0) - (b[1].answeredAt || 0));
+    if (!correct.length) {
+      noOneGotIt = round.trackName;
+      return;
+    }
+    if (round.playAt) {
+      const elapsed = correct[0][1].answeredAt - round.playAt;
+      if (elapsed >= 0 && elapsed < fastestMs) { fastestMs = elapsed; fastestRound = round.trackName; }
+    }
+    const winnerId = correct[0][0];
+    firstCorrectCount[winnerId] = (firstCorrectCount[winnerId] || 0) + 1;
+  });
+  const facts = [];
+  if (fastestRound) {
+    facts.push(`⚡ La ronda que se resolvió más rápido fue <b>"${escapeHtml(fastestRound)}"</b> (~${(fastestMs / 1000).toFixed(1)}s).`);
+  }
+  if (noOneGotIt) {
+    facts.push(`🤔 Nadie adivinó <b>"${escapeHtml(noOneGotIt)}"</b>.`);
+  }
+  let topSpeedster = null;
+  let topCount = 0;
+  Object.entries(firstCorrectCount).forEach(([pid, count]) => {
+    if (count > topCount) { topCount = count; topSpeedster = pid; }
+  });
+  if (topSpeedster && players[topSpeedster]) {
+    facts.push(`🚀 <b>${escapeHtml(players[topSpeedster].name)}</b> fue el primero en acertar más veces (${topCount} ${topCount === 1 ? 'ronda' : 'rondas'}).`);
+  }
+  if (!facts.length) return '';
+  return facts.map(f => `<div class="fun-fact-row">${f}</div>`).join('');
+}
 function renderLeaderboardInto(container, players, highlightId, roundAnswers) {
   const sorted = Object.entries(players || {}).sort((a, b) => (b[1].score || 0) - (a[1].score || 0));
+  const maxScore = Math.max(1, ...sorted.map(([, p]) => p.score || 0));
   container.innerHTML = '';
   sorted.forEach(([pid, p], i) => {
     const row = document.createElement('div');
-    row.className = 'result-row' + (pid === highlightId ? ' me' : '');
-    const isMe = pid === highlightId ? ' (tú)' : '';
+    row.className = 'result-row bar-row' + (pid === highlightId ? ' me' : '');
     let deltaHtml = '';
     if (roundAnswers) {
       const pts = (roundAnswers[pid] && roundAnswers[pid].points) || 0;
       deltaHtml = `<span class="delta ${pts > 0 ? 'pos' : 'zero'}">+${pts}</span>`;
     }
-    row.innerHTML = `<span class="name"><span class="rank">${i + 1}.</span> ${escapeHtml(p.name)}${isMe}</span><span class="score">${p.score || 0}${deltaHtml}</span>`;
+    const pct = (p.score || 0) > 0 ? Math.max(4, ((p.score || 0) / maxScore) * 100) : 0;
+    row.innerHTML = `<div class="bar-fill" style="width:0%"></div><span class="name"><span class="rank">${i + 1}.</span> ${playerLabel(p, pid === highlightId)}</span><span class="score">${p.score || 0}${deltaHtml}</span>`;
     container.appendChild(row);
+    requestAnimationFrame(() => {
+      const fill = row.querySelector('.bar-fill');
+      if (fill) fill.style.width = pct + '%';
+    });
   });
 }
+// ---------- Confeti (sin librerías) ----------
+function fireConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  if (!canvas) return;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  const colors = ['#FFD166', '#FF5D73', '#6FCF97', '#9C93C7', '#FFFFFF'];
+  const pieces = Array.from({ length: 120 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -20 - Math.random() * canvas.height * 0.5,
+    r: 4 + Math.random() * 5,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    vy: 2 + Math.random() * 3,
+    vx: -1.5 + Math.random() * 3,
+    rot: Math.random() * Math.PI,
+    vr: -0.2 + Math.random() * 0.4,
+  }));
+  let frame = 0;
+  const maxFrames = 200;
+  function tick() {
+    frame++;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 1.6);
+      ctx.restore();
+    });
+    if (frame < maxFrames) requestAnimationFrame(tick);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  tick();
+}
+// ---------- Sonidos cortos (Web Audio, sin archivos) ----------
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) audioCtx = new Ctx();
+  }
+  return audioCtx;
+}
+function beep(freq, durationMs, type) {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationMs / 1000);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + durationMs / 1000);
+  } catch (_) { /* si el navegador bloquea audio, simplemente no suena */ }
+}
+function playCorrectSound() { beep(880, 180, 'sine'); setTimeout(() => beep(1180, 220, 'sine'), 120); }
+function playWrongSound() { beep(180, 300, 'sawtooth'); }
+function playTickSound() { beep(1000, 60, 'square'); }
 
 // ---------- Elementos ----------
 const btnRoleHost = document.getElementById('btn-role-host');
@@ -120,6 +256,8 @@ const roundsSelect = document.getElementById('rounds-select');
 const snippetSelect = document.getElementById('snippet-select');
 const modeTabs = document.querySelectorAll('.mode-tab');
 const modeHint = document.getElementById('mode-hint');
+const eliminationField = document.getElementById('elimination-field');
+const eliminationEverySelect = document.getElementById('elimination-every-select');
 const playlistSearchInput = document.getElementById('playlist-search-input');
 const btnSearchPlaylists = document.getElementById('btn-search-playlists');
 const playlistSearchResults = document.getElementById('playlist-search-results');
@@ -143,6 +281,7 @@ const hostRevealArtist = document.getElementById('host-reveal-artist');
 const hostPlayingOptions = document.getElementById('host-playing-options');
 const hostRoundLeaderboard = document.getElementById('host-round-leaderboard');
 const hostRevealOptions = document.getElementById('host-reveal-options');
+const hostEliminatedBanner = document.getElementById('host-eliminated-banner');
 const hostRoundAnswers = document.getElementById('host-round-answers');
 const hostTimerWrap = document.getElementById('host-timer-wrap');
 const hostTimerBar = document.getElementById('host-timer-bar');
@@ -153,6 +292,7 @@ const hostAudioPlayer = document.getElementById('host-audio-player');
 
 const hostResultsList = document.getElementById('host-results-list');
 const hostWinnerBanner = document.getElementById('host-winner-banner');
+const hostFunFacts = document.getElementById('host-fun-facts');
 const btnPlayAgainHost = document.getElementById('btn-play-again-host');
 const btnNewSetupHost = document.getElementById('btn-new-setup-host');
 
@@ -167,10 +307,18 @@ const btnLeaveLobby = document.getElementById('btn-leave-lobby');
 const playerRoundCounter = document.getElementById('player-round-counter');
 const playerStatusText = document.getElementById('player-status-text');
 const btnManualPlay = document.getElementById('btn-manual-play');
+const playerDiscArt = document.getElementById('player-disc-art');
 const playerTimerWrap = document.getElementById('player-timer-wrap');
 const playerTimerBar = document.getElementById('player-timer-bar');
 const playerTimerText = document.getElementById('player-timer-text');
 const playerVolumeSlider = document.getElementById('player-volume');
+const progressiveControls = document.getElementById('progressive-controls');
+const progressivePointsLabel = document.getElementById('progressive-points-label');
+const btnProgressiveSkip = document.getElementById('btn-progressive-skip');
+const betControls = document.getElementById('bet-controls');
+const btnPlaceBet = document.getElementById('btn-place-bet');
+const betStatus = document.getElementById('bet-status');
+const eliminatedNotice = document.getElementById('eliminated-notice');
 const playerAnswerGrid = document.getElementById('player-answer-grid');
 const playerReveal = document.getElementById('player-reveal');
 const playerRevealBanner = document.getElementById('player-reveal-banner');
@@ -179,10 +327,12 @@ const playerRevealArt = document.getElementById('player-reveal-art');
 const playerRevealTitle = document.getElementById('player-reveal-title');
 const playerRevealArtist = document.getElementById('player-reveal-artist');
 const playerRoundLeaderboard = document.getElementById('player-round-leaderboard');
+const playerEliminatedBanner = document.getElementById('player-eliminated-banner');
 const audioPlayer = document.getElementById('audio-player');
 
 const playerResultsList = document.getElementById('player-results-list');
 const playerWinnerBanner = document.getElementById('player-winner-banner');
+const playerFunFacts = document.getElementById('player-fun-facts');
 const btnPlayerBackJoin = document.getElementById('btn-player-back-join');
 
 // ---------- Elementos: modo Solo ----------
@@ -799,6 +949,9 @@ tabs.forEach(tab => {
 const MODE_HINTS = {
   normal: 'El primero en acertar se lleva 100 puntos, bajando hasta un piso de 50 para los siguientes.',
   sudden: 'Solo el primero en acertar cada canción se lleva 1 punto — nadie más suma esa ronda. Si al final hay empate, se juega una ronda extra solo entre los empatados.',
+  progressive: `Cada canción empieza sonando solo ${PROGRESSIVE_STAGES[0]}s. Si no la adivinas, dale a "Escuchar más" para que suene más — pero cada vez que escuchas más, bajan los puntos posibles (${PROGRESSIVE_POINTS.join(' → ')}).`,
+  elimination: 'Puntaje normal por velocidad, pero cada cierto número de rondas el de menor puntaje queda eliminado (sigue mirando, ya no responde). Gana quien quede de último en pie.',
+  bet: 'Antes de responder puedes apostar "doble o nada": si apuestas y aciertas, te llevas el DOBLE de puntos de esa ronda; si apuestas y fallas, pierdes 100 puntos de tu marcador. No apostar es la opción segura de siempre.',
   solo: 'Practica tú solo, sin sala ni amigos: escuchas, adivinas y ves tu puntaje al final.',
 };
 modeTabs.forEach(tab => {
@@ -808,6 +961,8 @@ modeTabs.forEach(tab => {
     gameMode = tab.dataset.mode;
     modeHint.textContent = MODE_HINTS[gameMode] || '';
     btnCreateRoom.textContent = gameMode === 'solo' ? 'Empezar a practicar' : 'Crear sala';
+    document.getElementById('snippet-field').style.display = gameMode === 'progressive' ? 'none' : '';
+    eliminationField.classList.toggle('hidden', gameMode !== 'elimination');
   };
 });
 
@@ -893,6 +1048,7 @@ function buildRoundsFromPool() {
       previewUrl: track.previewUrl,
       options,
       correctIndex,
+      isProgressive: gameMode === 'progressive',
     };
   });
   return rounds;
@@ -969,7 +1125,7 @@ btnCreateRoom.onclick = async () => {
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       status: 'lobby',
       currentRound: 0,
-      settings: { roundsCount, snippetLength, mode: gameMode },
+      settings: { roundsCount, snippetLength, mode: gameMode, eliminationEvery: parseInt(eliminationEverySelect.value, 10) },
       rounds,
       players: {},
     }), 8000, TIMEOUT_MSG);
@@ -994,7 +1150,7 @@ function renderHostPlayerList(players) {
     names.forEach(p => {
       const chip = document.createElement('div');
       chip.className = 'chip';
-      chip.textContent = `${p.name} — ${p.score || 0} pts`;
+      chip.innerHTML = `${p.emoji ? p.emoji + ' ' : ''}${escapeHtml(p.name)} — ${p.score || 0} pts`;
       hostPlayersList.appendChild(chip);
     });
   }
@@ -1028,24 +1184,29 @@ function renderHostGame(room) {
     });
     if (lastPlayedRoundHost !== idx) {
       lastPlayedRoundHost = idx;
-      const delay = Math.max(0, room.playAt - getServerNow());
-      hostAudioPlayer.src = round.previewUrl;
-      hostTimerWrap.classList.add('hidden');
-      clearInterval(hostTimerInterval);
-      setTimeout(() => {
-        hostAudioPlayer.currentTime = 0;
-        hostAudioPlayer.play().catch(() => {});
-        hostTimerWrap.classList.remove('hidden');
-        const endAt = room.playAt + snippetSecs * 1000;
-        hostTimerInterval = setInterval(() => {
-          const remaining = Math.max(0, (endAt - getServerNow()) / 1000);
-          hostTimerBar.style.width = Math.max(0, (remaining / snippetSecs) * 100) + '%';
-          hostTimerBar.classList.toggle('urgent', remaining <= 3);
-          hostTimerText.textContent = Math.ceil(remaining) + 's';
-          if (remaining <= 0) clearInterval(hostTimerInterval);
-        }, 100);
-      }, delay);
-      setTimeout(() => { hostAudioPlayer.pause(); clearInterval(hostTimerInterval); hostTimerWrap.classList.add('hidden'); }, delay + snippetSecs * 1000);
+      if (round.isProgressive) {
+        hostGameStatus.textContent = '🔊 Cada jugador escucha a su propio ritmo (modo progresivo) — 1s, 3s, 6s, 10s, 15s…';
+        hostTimerWrap.classList.add('hidden');
+      } else {
+        const delay = Math.max(0, room.playAt - getServerNow());
+        hostAudioPlayer.src = round.previewUrl;
+        hostTimerWrap.classList.add('hidden');
+        clearInterval(hostTimerInterval);
+        setTimeout(() => {
+          hostAudioPlayer.currentTime = 0;
+          hostAudioPlayer.play().catch(() => {});
+          hostTimerWrap.classList.remove('hidden');
+          const endAt = room.playAt + snippetSecs * 1000;
+          hostTimerInterval = setInterval(() => {
+            const remaining = Math.max(0, (endAt - getServerNow()) / 1000);
+            hostTimerBar.style.width = Math.max(0, (remaining / snippetSecs) * 100) + '%';
+            hostTimerBar.classList.toggle('urgent', remaining <= 3);
+            hostTimerText.textContent = Math.ceil(remaining) + 's';
+            if (remaining <= 0) clearInterval(hostTimerInterval);
+          }, 100);
+        }, delay);
+        setTimeout(() => { hostAudioPlayer.pause(); clearInterval(hostTimerInterval); hostTimerWrap.classList.add('hidden'); }, delay + snippetSecs * 1000);
+      }
     }
   } else if (room.status === 'reveal') {
     hostDisc.classList.remove('spinning');
@@ -1071,16 +1232,23 @@ function renderHostGame(room) {
     hostRoundAnswers.innerHTML = '';
     const rows = Object.entries(room.players || {}).map(([pid, p]) => {
       const a = answers[pid];
-      return { name: p.name, answered: !!a, correct: !!(a && a.correct), points: (a && a.points) || 0 };
+      return { p, answered: !!a, correct: !!(a && a.correct), points: (a && a.points) || 0 };
     }).sort((a, b) => b.points - a.points);
     rows.forEach(r => {
       const row = document.createElement('div');
       row.className = 'result-row';
       const icon = r.correct ? '✅' : (r.answered ? '❌' : '⌛');
-      row.innerHTML = `<span class="name">${icon} ${escapeHtml(r.name)}</span><span class="delta ${r.points > 0 ? 'pos' : 'zero'}">+${r.points}</span>`;
+      row.innerHTML = `<span class="name">${icon} ${playerLabel(r.p, false)}</span><span class="delta ${r.points > 0 ? 'pos' : 'zero'}">+${r.points}</span>`;
       hostRoundAnswers.appendChild(row);
     });
 
+    const eliminatedThisRound = round.eliminatedThisRound;
+    if (eliminatedThisRound && eliminatedThisRound.length) {
+      hostEliminatedBanner.textContent = `💀 Quedaron eliminados: ${eliminatedThisRound.join(', ')}`;
+      hostEliminatedBanner.classList.remove('hidden');
+    } else {
+      hostEliminatedBanner.classList.add('hidden');
+    }
     renderLeaderboardInto(hostRoundLeaderboard, room.players || {}, null, answers);
     hostRevealCard.classList.remove('hidden');
     btnNextRound.classList.remove('hidden');
@@ -1093,15 +1261,17 @@ function snippetLengthFromRoom(room) {
 function renderHostResults(room) {
   const players = room.players || {};
   hostWinnerBanner.textContent = winnerMessage(players);
+  hostFunFacts.innerHTML = computeFunFactsHtml(room);
   const sorted = Object.values(players).sort((a, b) => (b.score || 0) - (a.score || 0));
   const topScore = sorted.length ? (sorted[0].score || 0) : 0;
   hostResultsList.innerHTML = '';
   sorted.forEach(p => {
     const row = document.createElement('div');
     row.className = 'result-row' + ((p.score || 0) === topScore && topScore > 0 ? ' winner' : '');
-    row.innerHTML = `<span class="name">${escapeHtml(p.name)}</span><span class="score">${p.score || 0}</span>`;
+    row.innerHTML = `<span class="name">${playerLabel(p, false)}</span><span class="score">${p.score || 0}</span>`;
     hostResultsList.appendChild(row);
   });
+  if (topScore > 0) fireConfetti();
 }
 function listenAsHost() {
   roomCodeDisplay.textContent = currentRoomCode;
@@ -1129,12 +1299,21 @@ function listenAsHost() {
 btnStartGame.onclick = () => startRound(0);
 async function startRound(index) {
   const playAt = getServerNow() + 3000;
-  await roomRef.update({ status: 'playing', currentRound: index, playAt });
-  scheduleFinalize(index, playAt);
+  await roomRef.update({
+    status: 'playing',
+    currentRound: index,
+    playAt,
+    ['rounds/' + index + '/playAt']: playAt,
+  });
+  const roundSnap = await roomRef.child('rounds/' + index).once('value');
+  scheduleFinalize(index, playAt, roundSnap.val());
 }
-function scheduleFinalize(index, playAt) {
+function scheduleFinalize(index, playAt, round) {
   clearTimeout(hostRoundTimer);
-  const delay = Math.max(0, playAt - getServerNow()) + snippetLength * 1000 + 600;
+  const totalSecs = (round && round.isProgressive)
+    ? PROGRESSIVE_ROUND_BUDGET_SECS
+    : snippetLength;
+  const delay = Math.max(0, playAt - getServerNow()) + totalSecs * 1000 + 600;
   hostRoundTimer = setTimeout(() => finalizeRound(index), delay);
 }
 async function finalizeRound(index) {
@@ -1176,9 +1355,42 @@ async function finalizeRound(index) {
         const cur = (playersVal[winnerId] && playersVal[winnerId].score) || 0;
         updates['players/' + winnerId + '/score'] = cur + 1;
       }
+    } else if (settings.mode === 'bet') {
+      // Normal por velocidad, pero duplicado si apostaste y acertaste,
+      // o -100 puntos de tu marcador si apostaste y fallaste.
+      const correctEntries = Object.entries(answers)
+        .filter(([, a]) => a && a.correct)
+        .sort((a, b) => (a[1].answeredAt || 0) - (b[1].answeredAt || 0));
+      const rankByPid = {};
+      correctEntries.forEach(([pid], rank) => { rankByPid[pid] = rank; });
+      Object.entries(answers).forEach(([pid, a]) => {
+        const bet = !!(a && a.bet);
+        let pts = 0;
+        if (a && a.correct) {
+          pts = computeRankPoints(rankByPid[pid]);
+          if (bet) pts *= 2;
+        } else if (bet) {
+          pts = -RANK_POINTS_START;
+        }
+        updates['rounds/' + index + '/answers/' + pid + '/points'] = pts;
+        const cur = (playersVal[pid] && playersVal[pid].score) || 0;
+        updates['players/' + pid + '/score'] = Math.max(0, cur + pts);
+      });
+    } else if (round.isProgressive) {
+      // Modo progresivo: cada jugador ya calculó y envió sus propios
+      // puntos según en qué etapa acertó (o 0 si falló) — el anfitrión
+      // solo suma, no hay que recalcular nada.
+      Object.entries(answers).forEach(([pid, a]) => {
+        const pts = (a && typeof a.points === 'number') ? a.points : 0;
+        if (pts > 0) {
+          const cur = (playersVal[pid] && playersVal[pid].score) || 0;
+          updates['players/' + pid + '/score'] = cur + pts;
+        }
+      });
     } else {
-      // Modo normal: orden por velocidad, quien respondió correcto más
-      // rápido se lleva más puntos (100, 90, 80… hasta un piso de 50).
+      // Modo normal (y Eliminación, que reutiliza este mismo cálculo):
+      // orden por velocidad, quien respondió correcto más rápido se
+      // lleva más puntos (100, 90, 80… hasta un piso de 50).
       const correctEntries = Object.entries(answers)
         .filter(([, a]) => a && a.correct)
         .sort((a, b) => (a[1].answeredAt || 0) - (b[1].answeredAt || 0));
@@ -1193,7 +1405,44 @@ async function finalizeRound(index) {
           updates['rounds/' + index + '/answers/' + pid + '/points'] = 0;
         }
       });
+
+      // Modo Eliminación: cada cierto número de rondas, el de menor
+      // puntaje (entre los que siguen vivos) queda eliminado. Si hay
+      // empate en último lugar, quedan eliminados todos los empatados
+      // — a menos que eso dejara la sala sin nadie, en cuyo caso se
+      // salta esa eliminación.
+      const eliminationEvery = settings.eliminationEvery || 3;
+      if (settings.mode === 'elimination' && (index + 1) % eliminationEvery === 0) {
+        const alive = Object.keys(playersVal).filter(pid => !playersVal[pid].eliminated);
+        if (alive.length > 1) {
+          const scoreAfter = pid => {
+            const base = (playersVal[pid] && playersVal[pid].score) || 0;
+            const delta = updates['players/' + pid + '/score'] !== undefined ? (updates['players/' + pid + '/score'] - base) : 0;
+            return base + delta;
+          };
+          const minScore = Math.min(...alive.map(scoreAfter));
+          const toEliminate = alive.filter(pid => scoreAfter(pid) === minScore);
+          if (toEliminate.length < alive.length) {
+            toEliminate.forEach(pid => { updates['players/' + pid + '/eliminated'] = true; });
+            updates['rounds/' + index + '/eliminatedThisRound'] = toEliminate.map(pid => playersVal[pid].name);
+          }
+        }
+      }
     }
+
+    // Racha de aciertos (independiente del modo y de cuántos puntos dio
+    // la ronda): sube si acertaste, se resetea si fallaste o no
+    // respondiste.
+    Object.keys(playersVal).forEach(pid => {
+      const a = answers[pid];
+      const wasCorrect = !!(a && a.correct);
+      const curStreak = playersVal[pid].streak || 0;
+      const newStreak = wasCorrect ? curStreak + 1 : 0;
+      updates['players/' + pid + '/streak'] = newStreak;
+      const bestStreak = Math.max(playersVal[pid].bestStreak || 0, newStreak);
+      updates['players/' + pid + '/bestStreak'] = bestStreak;
+    });
+
     updates['status'] = 'reveal';
     await roomRef.update(updates);
   } catch (e) {
@@ -1270,7 +1519,7 @@ btnPlayAgainHost.onclick = async () => {
     const playersSnap = await roomRef.child('players').once('value');
     const playersVal = playersSnap.val() || {};
     const resetPlayers = {};
-    Object.keys(playersVal).forEach(pid => { resetPlayers[pid] = { ...playersVal[pid], score: 0 }; });
+    Object.keys(playersVal).forEach(pid => { resetPlayers[pid] = { ...playersVal[pid], score: 0, streak: 0, bestStreak: 0, eliminated: false }; });
     lastPlayedRoundHost = -1;
     await roomRef.update({
       rounds,
@@ -1278,7 +1527,7 @@ btnPlayAgainHost.onclick = async () => {
       status: 'lobby',
       currentRound: 0,
       playAt: null,
-      settings: { roundsCount, snippetLength, mode: gameMode },
+      settings: { roundsCount, snippetLength, mode: gameMode, eliminationEvery: parseInt(eliminationEverySelect.value, 10) },
     });
     showScreen('host-lobby');
   } finally {
@@ -1349,9 +1598,13 @@ btnJoinRoom.onclick = async () => {
     playerId = sessionStorage.getItem('rq_player_id_' + code) || ('p_' + Math.random().toString(36).slice(2, 10));
     sessionStorage.setItem('rq_player_id_' + code, playerId);
     roomRef = db.ref('rooms/' + code);
+    const existingPlayer = (snap.val().players && snap.val().players[playerId]) || null;
     await withTimeout(roomRef.child('players/' + playerId).update({
       name: playerName,
-      score: (snap.val().players && snap.val().players[playerId] && snap.val().players[playerId].score) || 0,
+      score: (existingPlayer && existingPlayer.score) || 0,
+      streak: (existingPlayer && existingPlayer.streak) || 0,
+      bestStreak: (existingPlayer && existingPlayer.bestStreak) || 0,
+      emoji: (existingPlayer && existingPlayer.emoji) || pickPlayerEmoji(),
       joinedAt: firebase.database.ServerValue.TIMESTAMP,
     }), 8000, TIMEOUT_MSG);
     lastRenderedRound = -1;
@@ -1374,13 +1627,27 @@ function renderPlayerLobby(players) {
   Object.values(players || {}).forEach(p => {
     const chip = document.createElement('div');
     chip.className = 'chip';
-    chip.textContent = p.name;
+    chip.innerHTML = `${p.emoji ? p.emoji + ' ' : ''}${escapeHtml(p.name)}`;
     playerLobbyList.appendChild(chip);
   });
 }
+let currentBet = false;
 function setupPlayerRound(room, index) {
   answered = false;
+  currentBet = false;
   const round = room.rounds[index];
+  const me = (room.players && room.players[playerId]) || null;
+  if (me && me.eliminated) {
+    setupEliminatedSpectatorView(room, index, round);
+    return;
+  }
+  if (round.isProgressive) {
+    setupProgressivePlayerRound(room, index, round);
+    return;
+  }
+  progressiveControls.classList.add('hidden');
+  eliminatedNotice.classList.add('hidden');
+  if (playerDiscArt) playerDiscArt.classList.add('hidden');
   playerRoundCounter.textContent = round.isTiebreak ? '🔥 Ronda de desempate' : `Ronda ${index + 1}/${room.settings.roundsCount}`;
   playerReveal.classList.add('hidden');
   playerAnswerGrid.classList.remove('hidden');
@@ -1389,6 +1656,21 @@ function setupPlayerRound(room, index) {
   playerTimerWrap.classList.add('hidden');
   clearInterval(playerTimerInterval);
   playerStatusText.textContent = 'Prepárate…';
+
+  if (room.settings && room.settings.mode === 'bet') {
+    betControls.classList.remove('hidden');
+    betStatus.classList.add('hidden');
+    btnPlaceBet.disabled = false;
+    btnPlaceBet.textContent = '💰 Apostar doble o nada esta ronda';
+    btnPlaceBet.onclick = () => {
+      if (answered) return;
+      currentBet = true;
+      btnPlaceBet.disabled = true;
+      btnPlaceBet.textContent = '💰 Apostado — doble si aciertas, -100 si fallas';
+    };
+  } else {
+    betControls.classList.add('hidden');
+  }
 
   round.options.forEach((opt, i) => {
     const btn = document.createElement('button');
@@ -1432,6 +1714,116 @@ function setupPlayerRound(room, index) {
     }, snippetSecs * 1000);
   }, delay);
 }
+// ---------- Vista de espectador (jugador eliminado) ----------
+function setupEliminatedSpectatorView(room, index, round) {
+  progressiveControls.classList.add('hidden');
+  betControls.classList.add('hidden');
+  if (playerDiscArt) playerDiscArt.classList.add('hidden');
+  playerTimerWrap.classList.add('hidden');
+  clearInterval(playerTimerInterval);
+  clearTimeout(localSnippetTimer);
+  playerReveal.classList.add('hidden');
+  playerAnswerGrid.classList.add('hidden');
+  playerAnswerGrid.innerHTML = '';
+  btnManualPlay.classList.add('hidden');
+  playerRoundCounter.textContent = `Ronda ${index + 1}/${room.settings.roundsCount}`;
+  playerStatusText.textContent = '';
+  eliminatedNotice.textContent = '💀 Fuiste eliminado — puedes seguir mirando cómo termina la partida.';
+  eliminatedNotice.classList.remove('hidden');
+}
+// ---------- Modo progresivo (jugador) ----------
+let progressiveStageIndex = 0;
+function setupProgressivePlayerRound(room, index, round) {
+  progressiveStageIndex = 0;
+  playerRoundCounter.textContent = round.isTiebreak ? '🔥 Ronda de desempate' : `Ronda ${index + 1}/${room.settings.roundsCount}`;
+  playerReveal.classList.add('hidden');
+  playerAnswerGrid.classList.remove('hidden');
+  progressiveControls.classList.remove('hidden');
+  playerTimerWrap.classList.add('hidden');
+  clearInterval(playerTimerInterval);
+  btnManualPlay.classList.add('hidden');
+  btnProgressiveSkip.classList.remove('hidden');
+  playerStatusText.textContent = 'Prepárate…';
+  progressivePointsLabel.textContent = `Vale ${PROGRESSIVE_POINTS[0]} pts`;
+
+  if (playerDiscArt) {
+    if (round.trackImage) {
+      playerDiscArt.src = round.trackImage;
+      playerDiscArt.classList.remove('hidden');
+      playerDiscArt.style.filter = 'blur(20px)';
+    } else {
+      playerDiscArt.classList.add('hidden');
+    }
+  }
+
+  playerAnswerGrid.innerHTML = '';
+  round.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'answer-btn';
+    btn.textContent = opt;
+    btn.onclick = () => submitProgressiveAnswer(index, i, round.correctIndex);
+    playerAnswerGrid.appendChild(btn);
+  });
+
+  audioPlayer.src = round.previewUrl;
+  audioPlayer.load();
+  btnManualPlay.onclick = () => { audioPlayer.play().catch(() => {}); };
+  btnProgressiveSkip.onclick = () => advanceProgressiveStage();
+
+  const delay = Math.max(0, room.playAt - getServerNow());
+  clearTimeout(localSnippetTimer);
+  setTimeout(() => {
+    playerStatusText.textContent = '🔊 ¡Escucha!';
+    audioPlayer.currentTime = 0;
+    audioPlayer.play().catch(() => { btnManualPlay.classList.remove('hidden'); });
+    scheduleProgressivePause(0, PROGRESSIVE_STAGES[0]);
+  }, delay);
+}
+function scheduleProgressivePause(fromSeconds, toSeconds) {
+  clearTimeout(localSnippetTimer);
+  const ms = Math.max(0, (toSeconds - fromSeconds) * 1000);
+  localSnippetTimer = setTimeout(() => { audioPlayer.pause(); }, ms);
+}
+function advanceProgressiveStage() {
+  if (answered) return;
+  if (progressiveStageIndex >= PROGRESSIVE_STAGES.length - 1) return;
+  const fromSeconds = PROGRESSIVE_STAGES[progressiveStageIndex];
+  progressiveStageIndex += 1;
+  const isLastStage = progressiveStageIndex >= PROGRESSIVE_STAGES.length - 1;
+  progressivePointsLabel.textContent = `Vale ${PROGRESSIVE_POINTS[progressiveStageIndex]} pts`;
+  if (playerDiscArt && !playerDiscArt.classList.contains('hidden')) {
+    const blurAmount = Math.max(0, 20 - progressiveStageIndex * 5);
+    playerDiscArt.style.filter = `blur(${blurAmount}px)`;
+  }
+  playTickSound();
+  audioPlayer.play().catch(() => {});
+  if (isLastStage) {
+    // Última etapa: deja sonar el resto del preview completo en vez
+    // de pausarse en seco — ya no hay más a donde "escuchar más".
+    clearTimeout(localSnippetTimer);
+    btnProgressiveSkip.classList.add('hidden');
+    playerStatusText.textContent = '🔊 Última oportunidad — suena hasta el final del fragmento.';
+  } else {
+    scheduleProgressivePause(fromSeconds, PROGRESSIVE_STAGES[progressiveStageIndex]);
+  }
+}
+function submitProgressiveAnswer(index, optionIndex, correctIndex) {
+  if (answered) return;
+  answered = true;
+  clearTimeout(localSnippetTimer);
+  audioPlayer.pause();
+  progressiveControls.classList.add('hidden');
+  lockAnswerButtons(optionIndex);
+  const correct = optionIndex === correctIndex;
+  const points = correct ? PROGRESSIVE_POINTS[progressiveStageIndex] : 0;
+  if (correct) playCorrectSound(); else playWrongSound();
+  playerStatusText.textContent = correct
+    ? `¡Correcto! +${points} pts. Esperando a los demás…`
+    : 'Respuesta enviada. Esperando a los demás…';
+  roomRef.child(`rounds/${index}/answers/${playerId}`).set({
+    optionIndex, correct, points, stage: progressiveStageIndex, answeredAt: getServerNow(), name: playerName,
+  });
+}
 function lockAnswerButtons(selectedIndex) {
   const buttons = playerAnswerGrid.querySelectorAll('.answer-btn');
   buttons.forEach((b, i) => {
@@ -1442,22 +1834,27 @@ function lockAnswerButtons(selectedIndex) {
 function submitAnswer(index, optionIndex, correctIndex, btnEl) {
   if (answered) return;
   answered = true;
+  betControls.classList.add('hidden');
   lockAnswerButtons(optionIndex);
   const correct = optionIndex === correctIndex;
   const answeredAt = getServerNow();
+  if (correct) playCorrectSound(); else playWrongSound();
   playerStatusText.textContent = correct
     ? '¡Correcto! Esperando a los demás…'
     : 'Respuesta enviada. Esperando a los demás…';
-  roomRef.child(`rounds/${index}/answers/${playerId}`).set({ optionIndex, correct, answeredAt, name: playerName });
+  roomRef.child(`rounds/${index}/answers/${playerId}`).set({ optionIndex, correct, answeredAt, bet: currentBet, name: playerName });
 }
 function showPlayerReveal(room, index) {
   const round = room.rounds[index];
   playerAnswerGrid.classList.add('hidden');
   playerReveal.classList.remove('hidden');
+  const me = (room.players && room.players[playerId]) || null;
   const myAnswer = round.answers && round.answers[playerId];
   const gotIt = myAnswer && myAnswer.correct;
-  playerRevealBanner.textContent = gotIt ? '✅ ¡Correcto!' : (myAnswer ? '❌ Fallaste' : '⌛ No respondiste a tiempo');
-  playerPointsText.textContent = `+${(myAnswer && myAnswer.points) || 0} pts esta ronda`;
+  playerRevealBanner.textContent = (me && me.eliminated)
+    ? '💀 Estás eliminado — mirando desde las gradas'
+    : (gotIt ? '✅ ¡Correcto!' : (myAnswer ? '❌ Fallaste' : '⌛ No respondiste a tiempo'));
+  playerPointsText.textContent = (me && me.eliminated) ? '' : `+${(myAnswer && myAnswer.points) || 0} pts esta ronda`;
   playerRevealTitle.textContent = round.trackName;
   playerRevealArtist.textContent = round.trackArtist;
   if (round.trackImage) {
@@ -1466,11 +1863,19 @@ function showPlayerReveal(room, index) {
   } else {
     playerRevealArt.classList.add('hidden');
   }
+  const eliminatedThisRound = round.eliminatedThisRound;
+  if (eliminatedThisRound && eliminatedThisRound.length) {
+    playerEliminatedBanner.textContent = `💀 Quedaron eliminados: ${eliminatedThisRound.join(', ')}`;
+    playerEliminatedBanner.classList.remove('hidden');
+  } else {
+    playerEliminatedBanner.classList.add('hidden');
+  }
   renderLeaderboardInto(playerRoundLeaderboard, room.players || {}, playerId, round.answers || {});
 }
 function renderPlayerResults(room) {
   const players = room.players || {};
   playerWinnerBanner.textContent = winnerMessage(players);
+  playerFunFacts.innerHTML = computeFunFactsHtml(room);
   const sorted = Object.entries(players).sort((a, b) => (b[1].score || 0) - (a[1].score || 0));
   const topScore = sorted.length ? (sorted[0][1].score || 0) : 0;
   playerResultsList.innerHTML = '';
@@ -1479,10 +1884,10 @@ function renderPlayerResults(room) {
     let cls = 'result-row';
     if ((p.score || 0) === topScore && topScore > 0) cls += ' winner';
     row.className = cls;
-    const isMe = pid === playerId ? ' (tú)' : '';
-    row.innerHTML = `<span class="name">${escapeHtml(p.name)}${isMe}</span><span class="score">${p.score || 0}</span>`;
+    row.innerHTML = `<span class="name">${playerLabel(p, pid === playerId)}</span><span class="score">${p.score || 0}</span>`;
     playerResultsList.appendChild(row);
   });
+  if (topScore > 0 && players[playerId] && (players[playerId].score || 0) === topScore) fireConfetti();
 }
 function listenAsPlayer() {
   showScreen('player-lobby');

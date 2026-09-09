@@ -12,6 +12,7 @@
 
 <div class="stage">
 
+  <canvas id="confetti-canvas"></canvas>
   <div id="inapp-browser-warning" class="inapp-warning hidden"></div>
   <div id="global-error-banner" class="global-error hidden"></div>
   <p id="conn-status" class="conn-status">Conectando con el servidor de sincronización…</p>
@@ -89,9 +90,20 @@
       <div class="tabs" role="tablist">
         <button class="tab mode-tab active" data-mode="normal">Normal (puntos por velocidad)</button>
         <button class="tab mode-tab" data-mode="sudden">Muerte súbita</button>
+        <button class="tab mode-tab" data-mode="progressive">Progresivo (1s, 3s, 6s…)</button>
+        <button class="tab mode-tab" data-mode="elimination">Eliminación</button>
+        <button class="tab mode-tab" data-mode="bet">Apuesta doble o nada</button>
         <button class="tab mode-tab" data-mode="solo">Solo (practicar sin sala)</button>
       </div>
       <p id="mode-hint" class="hint">El primero en acertar se lleva 100 puntos, bajando hasta un piso de 50 para los siguientes.</p>
+      <div id="elimination-field" class="field-group field-group--inline hidden">
+        <span class="field-label">Eliminar al último lugar cada:</span>
+        <select id="elimination-every-select" class="select select--sm">
+          <option value="2">2 rondas</option>
+          <option value="3" selected>3 rondas</option>
+          <option value="4">4 rondas</option>
+        </select>
+      </div>
     </div>
 
     <div class="field-row">
@@ -104,7 +116,7 @@
           <option value="20">20</option>
         </select>
       </div>
-      <div class="field-group field-group--inline">
+      <div id="snippet-field" class="field-group field-group--inline">
         <span class="field-label">Duración del fragmento</span>
         <select id="snippet-select" class="select select--sm">
           <option value="5">5 segundos</option>
@@ -215,6 +227,7 @@
 
       <p class="field-label" style="align-self:center; margin-top:14px;">Opciones de esta ronda</p>
       <div id="host-reveal-options" class="answer-grid answer-grid--readonly"></div>
+      <p id="host-eliminated-banner" class="hint error-text hidden" style="text-align:center;"></p>
 
       <p class="field-label" style="align-self:center; margin-top:14px;">Quién acertó</p>
       <div id="host-round-answers" class="results-list results-list--compact"></div>
@@ -232,6 +245,7 @@
   <section id="screen-host-results" class="screen">
     <h2 class="title title--sm">Resultados</h2>
     <p id="host-winner-banner" class="winner-banner"></p>
+    <div id="host-fun-facts" class="fun-facts"></div>
     <div id="host-results-list" class="results-list"></div>
     <button id="btn-play-again-host" class="btn btn--primary btn--wide">Jugar otra vez (misma sala)</button>
     <button id="btn-new-setup-host" class="btn btn--ghost btn--wide">Nueva configuración</button>
@@ -271,6 +285,7 @@
 
     <div class="disc-wrap">
       <div id="player-disc" class="disc">
+        <img id="player-disc-art" class="disc__art hidden" alt="" />
         <div class="disc__label"></div>
       </div>
     </div>
@@ -288,6 +303,18 @@
     <p id="player-status-text" class="hint" style="text-align:center;">Prepárate…</p>
     <button id="btn-manual-play" class="btn btn--ghost hidden">🔊 ¿No escuchas nada? Toca aquí</button>
 
+    <div id="progressive-controls" class="hidden" style="width:100%;">
+      <p id="progressive-points-label" class="points-label">Vale 100 pts</p>
+      <button id="btn-progressive-skip" class="btn btn--ghost btn--wide">⏭ Escuchar más (baja los puntos)</button>
+    </div>
+
+    <div id="bet-controls" class="hidden" style="width:100%;">
+      <button id="btn-place-bet" class="btn btn--ghost btn--wide">💰 Apostar doble o nada esta ronda</button>
+      <p id="bet-status" class="hint hidden"></p>
+    </div>
+
+    <p id="eliminated-notice" class="hint error-text hidden" style="text-align:center;"></p>
+
     <div id="player-answer-grid" class="answer-grid"></div>
 
     <div id="player-reveal" class="reveal-card hidden">
@@ -298,6 +325,7 @@
       <p id="player-reveal-artist" class="reveal-artist"></p>
       <p class="field-label" style="align-self:center; margin-top:14px;">Leaderboard</p>
       <div id="player-round-leaderboard" class="results-list results-list--compact"></div>
+      <p id="player-eliminated-banner" class="hint error-text hidden" style="text-align:center;"></p>
     </div>
 
     <audio id="audio-player" preload="auto"></audio>
@@ -307,6 +335,7 @@
   <section id="screen-player-results" class="screen">
     <h2 class="title title--sm">Resultados</h2>
     <p id="player-winner-banner" class="winner-banner"></p>
+    <div id="player-fun-facts" class="fun-facts"></div>
     <div id="player-results-list" class="results-list"></div>
     <p class="hint">Quédate en esta sala, esperando a que el anfitrión mande la partida.</p>
     <button id="btn-player-back-join" class="btn btn--ghost btn--wide">Salir de la sala</button>
