@@ -504,18 +504,24 @@ function logout() {
 
 // ---------- Spotify Web API ----------
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-async function spotifyGet(url, attempt) {
+async function spotifyGet(url, attempt, onRetry) {
   attempt = attempt || 1;
   let res;
   try {
     res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   } catch (networkErr) {
-    // Fallo de RED (no llegó a responder Spotify) — casi siempre es algo
-    // pasajero (wifi inestable, un bloqueador de extensión, un hipo de
-    // conexión). Reintenta un par de veces antes de rendirse.
-    if (attempt < 4) {
-      await sleep(700 * attempt);
-      return spotifyGet(url, attempt + 1);
+    // Fallo de RED (el navegador nunca recibió respuesta). A veces es
+    // la conexión, pero Spotify también tiene un bug confirmado de su
+    // lado (preflight de CORS que a veces no responde con los permisos
+    // correctos) que se ve exactamente igual e intermitente — por eso
+    // insistimos varias veces con más espera entre cada intento, ya
+    // que en otro intento puede tocarle un servidor de Spotify que sí
+    // responda bien.
+    const MAX_ATTEMPTS = 6;
+    if (attempt < MAX_ATTEMPTS) {
+      if (onRetry) onRetry(attempt, MAX_ATTEMPTS);
+      await sleep(Math.min(12000, 400 * Math.pow(2, attempt)));
+      return spotifyGet(url, attempt + 1, onRetry);
     }
     throw networkErr;
   }
@@ -544,7 +550,7 @@ function describeSpotifyError(e) {
     return 'Spotify está limitando las solicitudes (demasiadas seguidas). Espera unos segundos y vuelve a intentar.';
   }
   if (e instanceof TypeError) {
-    return 'No se pudo conectar con Spotify después de varios intentos. Esto normalmente es la conexión (wifi inestable, datos móviles débiles) o una extensión del navegador bloqueando la solicitud — no tu cuenta ni el modo desarrollo. Prueba: 1) dale a 🔄 para reintentar, 2) revisa si tienes uBlock/AdGuard/una VPN activa y desactívala para este sitio, 3) prueba desde otra red (datos móviles en vez de wifi, o viceversa).';
+    return 'No se pudo conectar con Spotify después de varios intentos. Esto puede ser tu conexión, pero también hay un bug confirmado y actualmente activo del lado de Spotify (falla intermitente en el "preflight" de CORS de api.spotify.com — reportado en su foro de desarrolladores en julio 2026, todavía sin resolver). No es algo que puedas arreglar tú: si sigue pasando, dale a 🔄 cada rato, o copia el link de la playlist con "Compartir → Copiar link" y pégalo abajo — ese camino usa una llamada distinta que suele funcionar aunque esta falle.';
   }
   return (e && e.message) || 'Ocurrió un error inesperado.';
 }
@@ -558,11 +564,26 @@ async function fetchAllPages(url) {
   }
   return items;
 }
+// Igual que fetchAllPages, pero muestra el progreso de los reintentos
+// en pantalla — se usa donde ya sabemos que Spotify puede tardar en
+// responder bien (ver el bug de CORS explicado arriba de spotifyGet).
+async function fetchAllPagesWithRetryStatus(url) {
+  let items = [];
+  let next = url;
+  while (next) {
+    const data = await spotifyGet(next, 1, (attempt, max) => {
+      playlistCountStatus.textContent = `Spotify no respondió a la primera (intento ${attempt}/${max})… reintentando.`;
+    });
+    items = items.concat(data.items || []);
+    next = data.next;
+  }
+  return items;
+}
 async function loadPlaylists() {
   playlistCountStatus.classList.remove('error-text');
   playlistCountStatus.textContent = 'Buscando tus playlists…';
   try {
-    const items = await fetchAllPages('https://api.spotify.com/v1/me/playlists?limit=50');
+    const items = await fetchAllPagesWithRetryStatus('https://api.spotify.com/v1/me/playlists?limit=50');
     playlistSelect.innerHTML = '';
     if (!items.length) {
       playlistSelect.innerHTML = '<option value="">No se encontraron playlists</option>';
@@ -581,7 +602,7 @@ async function loadPlaylists() {
     playlistSelect.innerHTML = '<option value="">Error — revisa el mensaje de abajo</option>';
     let msg = describeSpotifyError(e);
     if (e instanceof TypeError) {
-      msg += ' Mientras tanto: copia el link de cada playlist o Blend desde la app de Spotify (Compartir → Copiar link) y pégalo en el campo de abajo — ese SÍ te está funcionando (usa una conexión distinta a esta lista). Ojo: el buscador de aquí abajo solo encuentra playlists PÚBLICAS del catálogo de Spotify, no tu biblioteca privada, así que para tus playlists propias y Blends el link manual es la única vía mientras esto no cargue. Para confirmar que es algo local a tu navegador, prueba abrir esta página en una ventana de incógnito con las extensiones desactivadas.';
+      msg += ' Mientras tanto: copia el link de cada playlist o Blend desde la app de Spotify (Compartir → Copiar link) y pégalo en el campo de abajo — esa llamada es distinta y suele funcionar aunque esta falle. Ojo: el buscador de aquí abajo solo encuentra playlists PÚBLICAS del catálogo de Spotify, no tu biblioteca privada, así que para tus playlists propias y Blends el link manual es la única vía mientras Spotify no arregle esto de su lado.';
     }
     playlistCountStatus.textContent = msg;
     playlistCountStatus.classList.add('error-text');

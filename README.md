@@ -228,14 +228,27 @@ migración de 2026. Cosas para probar, en orden:
    nos deja ver el mensaje genérico "Forbidden".
 
 **"Error cargando playlists" con un mensaje de fallo de conexión, aun
-con buen internet**
+con buen internet, sin extensiones, en incógnito y desde otra red**
 
-Le subí los reintentos automáticos a 4 intentos con más espera entre
-cada uno, y agregué una pequeña pausa antes del primer intento justo
-después de conectar con Spotify. Si sigue pasando exactamente en esa
-llamada (y no en las demás), puede ser algo muy específico de tu
-navegador — prueba en una ventana de incógnito o en otro navegador
-distinto para descartarlo del todo.
+Esto es un **bug confirmado del lado de Spotify**, no algo de tu
+configuración — ya lo probamos a fondo (Chrome nuevo, incógnito, otra
+red, sin VPN/adblock/antivirus) y sigue igual, lo cual apunta
+exactamente a esto. Spotify tiene un problema activo con el
+"preflight" de CORS de `api.spotify.com`: a veces su servidor responde
+al permiso previo que pide el navegador sin los encabezados
+necesarios, y el navegador entonces bloquea la solicitud real — se ve
+igual que un fallo de red, en cualquier navegador, cualquier red.
+Reportado en su foro de desarrolladores en julio de 2026, aún sin
+resolver:
+https://community.spotify.com/t5/Spotify-for-Developers/api-spotify-com-CORS-preflight-broken/td-p/7508125
+
+Como es intermitente (no le pasa a todas las llamadas, ni todo el
+tiempo), la app ahora reintenta hasta 6 veces con más espera entre
+cada intento — puede que en otro intento le toque un servidor de
+Spotify que sí responda bien. Mientras tanto, el mejor camino es
+pegar el link de cada playlist/Blend directamente (Compartir → Copiar
+link en la app de Spotify) — esa es una llamada distinta que no
+depende de este endpoint en particular.
 
 
 
