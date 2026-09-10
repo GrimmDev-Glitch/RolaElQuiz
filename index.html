@@ -93,6 +93,8 @@
         <button class="tab mode-tab" data-mode="progressive">Progresivo (1s, 3s, 6s…)</button>
         <button class="tab mode-tab" data-mode="elimination">Eliminación</button>
         <button class="tab mode-tab" data-mode="bet">Apuesta doble o nada</button>
+        <button class="tab mode-tab" data-mode="blitz">Contrarreloj (cuántas puedas)</button>
+        <button class="tab mode-tab" data-mode="survival">Supervivencia (el reloj baja)</button>
         <button class="tab mode-tab" data-mode="solo">Solo (practicar sin sala)</button>
       </div>
       <p id="mode-hint" class="hint">El primero en acertar se lleva 100 puntos, bajando hasta un piso de 50 para los siguientes.</p>
@@ -103,6 +105,33 @@
           <option value="3" selected>3 rondas</option>
           <option value="4">4 rondas</option>
         </select>
+      </div>
+      <div id="blitz-field" class="field-group field-group--inline hidden">
+        <span class="field-label">Tiempo total</span>
+        <select id="blitz-seconds-select" class="select select--sm">
+          <option value="30">30 segundos</option>
+          <option value="60" selected>60 segundos</option>
+          <option value="90">90 segundos</option>
+          <option value="120">120 segundos</option>
+        </select>
+      </div>
+      <div id="survival-field" class="field-row hidden">
+        <div class="field-group field-group--inline">
+          <span class="field-label">Empiezas con</span>
+          <select id="survival-start-select" class="select select--sm">
+            <option value="10">10 segundos</option>
+            <option value="15" selected>15 segundos</option>
+            <option value="20">20 segundos</option>
+          </select>
+        </div>
+        <div class="field-group field-group--inline">
+          <span class="field-label">Por cada acierto sumas</span>
+          <select id="survival-add-select" class="select select--sm">
+            <option value="3">3 segundos</option>
+            <option value="5" selected>5 segundos</option>
+            <option value="7">7 segundos</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -219,6 +248,11 @@
     <p id="host-game-status" class="hint" style="text-align:center;">Preparando…</p>
     <p id="host-answer-count" class="hint" style="text-align:center;"></p>
 
+    <div id="host-run-live" class="hidden" style="width:100%;">
+      <p class="field-label" style="align-self:center;">Leaderboard en vivo</p>
+      <div id="host-run-leaderboard" class="results-list results-list--compact"></div>
+    </div>
+
     <div id="host-playing-options" class="answer-grid answer-grid--readonly hidden"></div>
 
     <div id="host-reveal-card" class="reveal-card hidden">
@@ -282,6 +316,7 @@
   <!-- PANTALLA: JUEGO (VISTA JUGADOR) -->
   <section id="screen-player-game" class="screen">
     <span id="player-round-counter" class="round-counter">Ronda 1/10</span>
+    <p id="run-score-text" class="points-label hidden">Aciertos: 0</p>
 
     <div class="disc-wrap">
       <div id="player-disc" class="disc">
@@ -305,6 +340,7 @@
 
     <div id="progressive-controls" class="hidden" style="width:100%;">
       <p id="progressive-points-label" class="points-label">Vale 100 pts</p>
+      <button id="btn-progressive-replay" class="btn btn--ghost">▶ Escuchar de nuevo</button>
       <button id="btn-progressive-skip" class="btn btn--ghost btn--wide">⏭ Escuchar más (baja los puntos)</button>
     </div>
 

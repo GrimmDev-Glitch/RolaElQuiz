@@ -258,6 +258,11 @@ const modeTabs = document.querySelectorAll('.mode-tab');
 const modeHint = document.getElementById('mode-hint');
 const eliminationField = document.getElementById('elimination-field');
 const eliminationEverySelect = document.getElementById('elimination-every-select');
+const blitzField = document.getElementById('blitz-field');
+const blitzSecondsSelect = document.getElementById('blitz-seconds-select');
+const survivalField = document.getElementById('survival-field');
+const survivalStartSelect = document.getElementById('survival-start-select');
+const survivalAddSelect = document.getElementById('survival-add-select');
 const playlistSearchInput = document.getElementById('playlist-search-input');
 const btnSearchPlaylists = document.getElementById('btn-search-playlists');
 const playlistSearchResults = document.getElementById('playlist-search-results');
@@ -275,6 +280,8 @@ const hostDisc = document.getElementById('host-disc');
 const hostDiscArt = document.getElementById('host-disc-art');
 const hostGameStatus = document.getElementById('host-game-status');
 const hostAnswerCount = document.getElementById('host-answer-count');
+const hostRunLive = document.getElementById('host-run-live');
+const hostRunLeaderboard = document.getElementById('host-run-leaderboard');
 const hostRevealCard = document.getElementById('host-reveal-card');
 const hostRevealTitle = document.getElementById('host-reveal-title');
 const hostRevealArtist = document.getElementById('host-reveal-artist');
@@ -315,11 +322,13 @@ const playerVolumeSlider = document.getElementById('player-volume');
 const progressiveControls = document.getElementById('progressive-controls');
 const progressivePointsLabel = document.getElementById('progressive-points-label');
 const btnProgressiveSkip = document.getElementById('btn-progressive-skip');
+const btnProgressiveReplay = document.getElementById('btn-progressive-replay');
 const betControls = document.getElementById('bet-controls');
 const btnPlaceBet = document.getElementById('btn-place-bet');
 const betStatus = document.getElementById('bet-status');
 const eliminatedNotice = document.getElementById('eliminated-notice');
 const playerAnswerGrid = document.getElementById('player-answer-grid');
+const runScoreText = document.getElementById('run-score-text');
 const playerReveal = document.getElementById('player-reveal');
 const playerRevealBanner = document.getElementById('player-reveal-banner');
 const playerPointsText = document.getElementById('player-points-text');
@@ -952,6 +961,8 @@ const MODE_HINTS = {
   progressive: `Cada canción empieza sonando solo ${PROGRESSIVE_STAGES[0]}s. Si no la adivinas, dale a "Escuchar más" para que suene más — pero cada vez que escuchas más, bajan los puntos posibles (${PROGRESSIVE_POINTS.join(' → ')}).`,
   elimination: 'Puntaje normal por velocidad, pero cada cierto número de rondas el de menor puntaje queda eliminado (sigue mirando, ya no responde). Gana quien quede de último en pie.',
   bet: 'Antes de responder puedes apostar "doble o nada": si apuestas y aciertas, te llevas el DOBLE de puntos de esa ronda; si apuestas y fallas, pierdes 100 puntos de tu marcador. No apostar es la opción segura de siempre.',
+  blitz: 'Todos corren contra el mismo reloj: adivina tantas canciones como puedas antes de que se acabe el tiempo. Cada jugador escucha a su propio ritmo — no espera a los demás.',
+  survival: 'Empiezas con un reloj corto que no para de bajar. Cada acierto te suma segundos para seguir vivo; si el reloj llega a cero, se acabó tu partida. Cada quien juega a su ritmo, tratando de aguantar lo más posible.',
   solo: 'Practica tú solo, sin sala ni amigos: escuchas, adivinas y ves tu puntaje al final.',
 };
 modeTabs.forEach(tab => {
@@ -961,8 +972,12 @@ modeTabs.forEach(tab => {
     gameMode = tab.dataset.mode;
     modeHint.textContent = MODE_HINTS[gameMode] || '';
     btnCreateRoom.textContent = gameMode === 'solo' ? 'Empezar a practicar' : 'Crear sala';
-    document.getElementById('snippet-field').style.display = gameMode === 'progressive' ? 'none' : '';
+    const isRunMode = gameMode === 'blitz' || gameMode === 'survival';
+    document.getElementById('snippet-field').style.display = (gameMode === 'progressive' || isRunMode) ? 'none' : '';
+    document.getElementById('rounds-select').closest('.field-group').style.display = isRunMode ? 'none' : '';
     eliminationField.classList.toggle('hidden', gameMode !== 'elimination');
+    blitzField.classList.toggle('hidden', gameMode !== 'blitz');
+    survivalField.classList.toggle('hidden', gameMode !== 'survival');
   };
 });
 
@@ -1107,7 +1122,8 @@ btnCreateRoom.onclick = async () => {
     return;
   }
   btnCreateRoom.disabled = true;
-  roundsCount = parseInt(roundsSelect.value, 10);
+  const isRunMode = gameMode === 'blitz' || gameMode === 'survival';
+  roundsCount = isRunMode ? 60 : parseInt(roundsSelect.value, 10);
   snippetLength = parseInt(snippetSelect.value, 10);
   try {
     await buildPreviewPoolFromSource();
@@ -1121,11 +1137,18 @@ btnCreateRoom.onclick = async () => {
     currentRoomCode = await createUniqueRoomCode();
     const rounds = buildRoundsFromPool();
     roomRef = db.ref('rooms/' + currentRoomCode);
+    const settings = { roundsCount, snippetLength, mode: gameMode };
+    if (gameMode === 'elimination') settings.eliminationEvery = parseInt(eliminationEverySelect.value, 10);
+    if (gameMode === 'blitz') settings.blitzSeconds = parseInt(blitzSecondsSelect.value, 10);
+    if (gameMode === 'survival') {
+      settings.survivalStart = parseInt(survivalStartSelect.value, 10);
+      settings.survivalAdd = parseInt(survivalAddSelect.value, 10);
+    }
     await withTimeout(roomRef.set({
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       status: 'lobby',
       currentRound: 0,
-      settings: { roundsCount, snippetLength, mode: gameMode, eliminationEvery: parseInt(eliminationEverySelect.value, 10) },
+      settings,
       rounds,
       players: {},
     }), 8000, TIMEOUT_MSG);
@@ -1156,8 +1179,43 @@ function renderHostPlayerList(players) {
   }
   btnStartGame.disabled = names.length === 0;
 }
+let hostRunTickInterval = null;
+function renderHostRunLive(room) {
+  hostDisc.classList.remove('spinning');
+  hostDiscArt.classList.add('hidden');
+  hostTimerWrap.classList.add('hidden');
+  hostPlayingOptions.classList.add('hidden');
+  hostRevealCard.classList.add('hidden');
+  btnNextRound.classList.add('hidden');
+  hostRunLive.classList.remove('hidden');
+  const mode = room.settings.mode;
+  clearInterval(hostRunTickInterval);
+  if (mode === 'blitz') {
+    const blitzSeconds = room.settings.blitzSeconds || 60;
+    const endAt = room.playAt + blitzSeconds * 1000;
+    const tick = () => {
+      const remaining = Math.max(0, Math.round((endAt - getServerNow()) / 1000));
+      hostRoundCounter.textContent = `⏱ ${remaining}s restantes`;
+      if (remaining <= 0) clearInterval(hostRunTickInterval);
+    };
+    tick();
+    hostRunTickInterval = setInterval(tick, 1000);
+    hostGameStatus.textContent = 'Cada quien adivina a su propio ritmo — el leaderboard se actualiza solo.';
+  } else {
+    hostRoundCounter.textContent = '🏃 Supervivencia en curso';
+    hostGameStatus.textContent = 'Dale a "Terminar" cuando quieras cerrar la partida y ver los resultados.';
+  }
+  hostAnswerCount.textContent = '';
+  renderLeaderboardInto(hostRunLeaderboard, room.players || {}, null);
+}
 function renderHostGame(room) {
   showScreen('host-game');
+  const isRunMode = room.settings && (room.settings.mode === 'blitz' || room.settings.mode === 'survival');
+  if (isRunMode) {
+    renderHostRunLive(room);
+    return;
+  }
+  hostRunLive.classList.add('hidden');
   const idx = room.currentRound || 0;
   const round = room.rounds[idx];
   hostRoundCounter.textContent = round.isTiebreak ? '🔥 Ronda de desempate' : `Ronda ${idx + 1}/${room.settings.roundsCount}`;
@@ -1296,7 +1354,27 @@ function listenAsHost() {
     }
   });
 }
-btnStartGame.onclick = () => startRound(0);
+btnStartGame.onclick = () => {
+  if (gameMode === 'blitz' || gameMode === 'survival') {
+    startRunModeHost();
+  } else {
+    startRound(0);
+  }
+};
+async function startRunModeHost() {
+  const playAt = getServerNow() + 3000;
+  await roomRef.update({ status: 'playing', currentRound: 0, playAt });
+  if (gameMode === 'blitz') {
+    const snap = await roomRef.child('settings/blitzSeconds').once('value');
+    const blitzSeconds = snap.val() || 60;
+    clearTimeout(hostRoundTimer);
+    const delay = Math.max(0, playAt - getServerNow()) + blitzSeconds * 1000 + 2000;
+    hostRoundTimer = setTimeout(() => { roomRef.update({ status: 'finished' }); }, delay);
+  }
+  // En modo Supervivencia no se agenda un final automático — cada
+  // quien juega a su propio ritmo hasta que se queda sin tiempo; el
+  // anfitrión termina la partida cuando quiera con el botón "Terminar".
+}
 async function startRound(index) {
   const playAt = getServerNow() + 3000;
   await roomRef.update({
@@ -1521,13 +1599,20 @@ btnPlayAgainHost.onclick = async () => {
     const resetPlayers = {};
     Object.keys(playersVal).forEach(pid => { resetPlayers[pid] = { ...playersVal[pid], score: 0, streak: 0, bestStreak: 0, eliminated: false }; });
     lastPlayedRoundHost = -1;
+    const settings = { roundsCount, snippetLength, mode: gameMode };
+    if (gameMode === 'elimination') settings.eliminationEvery = parseInt(eliminationEverySelect.value, 10);
+    if (gameMode === 'blitz') settings.blitzSeconds = parseInt(blitzSecondsSelect.value, 10);
+    if (gameMode === 'survival') {
+      settings.survivalStart = parseInt(survivalStartSelect.value, 10);
+      settings.survivalAdd = parseInt(survivalAddSelect.value, 10);
+    }
     await roomRef.update({
       rounds,
       players: resetPlayers,
       status: 'lobby',
       currentRound: 0,
       playAt: null,
-      settings: { roundsCount, snippetLength, mode: gameMode, eliminationEvery: parseInt(eliminationEverySelect.value, 10) },
+      settings,
     });
     showScreen('host-lobby');
   } finally {
@@ -1635,6 +1720,7 @@ let currentBet = false;
 function setupPlayerRound(room, index) {
   answered = false;
   currentBet = false;
+  runScoreText.classList.add('hidden');
   const round = room.rounds[index];
   const me = (room.players && room.players[playerId]) || null;
   if (me && me.eliminated) {
@@ -1716,6 +1802,7 @@ function setupPlayerRound(room, index) {
 }
 // ---------- Vista de espectador (jugador eliminado) ----------
 function setupEliminatedSpectatorView(room, index, round) {
+  runScoreText.classList.add('hidden');
   progressiveControls.classList.add('hidden');
   betControls.classList.add('hidden');
   if (playerDiscArt) playerDiscArt.classList.add('hidden');
@@ -1734,6 +1821,7 @@ function setupEliminatedSpectatorView(room, index, round) {
 // ---------- Modo progresivo (jugador) ----------
 let progressiveStageIndex = 0;
 function setupProgressivePlayerRound(room, index, round) {
+  runScoreText.classList.add('hidden');
   progressiveStageIndex = 0;
   playerRoundCounter.textContent = round.isTiebreak ? '🔥 Ronda de desempate' : `Ronda ${index + 1}/${room.settings.roundsCount}`;
   playerReveal.classList.add('hidden');
@@ -1769,6 +1857,7 @@ function setupProgressivePlayerRound(room, index, round) {
   audioPlayer.load();
   btnManualPlay.onclick = () => { audioPlayer.play().catch(() => {}); };
   btnProgressiveSkip.onclick = () => advanceProgressiveStage();
+  btnProgressiveReplay.onclick = () => replayProgressiveStage();
 
   const delay = Math.max(0, room.playAt - getServerNow());
   clearTimeout(localSnippetTimer);
@@ -1783,6 +1872,17 @@ function scheduleProgressivePause(fromSeconds, toSeconds) {
   clearTimeout(localSnippetTimer);
   const ms = Math.max(0, (toSeconds - fromSeconds) * 1000);
   localSnippetTimer = setTimeout(() => { audioPlayer.pause(); }, ms);
+}
+function replayProgressiveStage() {
+  if (answered) return;
+  audioPlayer.currentTime = 0;
+  audioPlayer.play().catch(() => {});
+  const isLastStage = progressiveStageIndex >= PROGRESSIVE_STAGES.length - 1;
+  if (isLastStage) {
+    clearTimeout(localSnippetTimer);
+  } else {
+    scheduleProgressivePause(0, PROGRESSIVE_STAGES[progressiveStageIndex]);
+  }
 }
 function advanceProgressiveStage() {
   if (answered) return;
@@ -1830,6 +1930,129 @@ function lockAnswerButtons(selectedIndex) {
     b.disabled = true;
     if (i === selectedIndex) b.classList.add('selected');
   });
+}
+// ---------- Modos de carrera (Contrarreloj / Supervivencia) ----------
+let runModeStarted = false;
+let runQueueIndex = 0;
+let runScore = 0;
+let runTimeLeft = 0;
+let runInterval = null;
+let runSongTimer = null;
+let runAnswered = false;
+const RUN_SNIPPET_SECS = 6;
+
+function startPlayerRun(room) {
+  runQueueIndex = 0;
+  runScore = 0;
+  runAnswered = false;
+  const mode = room.settings.mode;
+  runTimeLeft = mode === 'survival' ? (room.settings.survivalStart || 15) : (room.settings.blitzSeconds || 60);
+  runScoreText.classList.remove('hidden');
+  runScoreText.textContent = `Aciertos: 0`;
+  progressiveControls.classList.add('hidden');
+  betControls.classList.add('hidden');
+  eliminatedNotice.classList.add('hidden');
+  playerReveal.classList.add('hidden');
+  if (playerDiscArt) playerDiscArt.classList.add('hidden');
+  playerTimerWrap.classList.remove('hidden');
+  playerTimerBar.classList.remove('urgent');
+  const delay = Math.max(0, room.playAt - getServerNow());
+  playerStatusText.textContent = 'Prepárate…';
+  playerRoundCounter.textContent = mode === 'survival' ? '🏃 Supervivencia' : '⏱ Contrarreloj';
+  setTimeout(() => {
+    startRunClock(room, mode);
+    playNextRunSong(room);
+  }, delay);
+}
+function startRunClock(room, mode) {
+  clearInterval(runInterval);
+  const maxForBar = mode === 'survival' ? (room.settings.survivalStart || 15) + (room.settings.survivalAdd || 5) * 3 : runTimeLeft;
+  const updateBar = () => {
+    playerTimerText.textContent = Math.ceil(runTimeLeft) + 's';
+    const pct = Math.max(0, Math.min(100, (runTimeLeft / maxForBar) * 100));
+    playerTimerBar.style.width = pct + '%';
+    playerTimerBar.classList.toggle('urgent', runTimeLeft <= 5);
+  };
+  updateBar();
+  runInterval = setInterval(() => {
+    runTimeLeft -= 1;
+    updateBar();
+    if (runTimeLeft <= 0) {
+      endPlayerRun();
+    }
+  }, 1000);
+}
+function playNextRunSong(room) {
+  if (runTimeLeft <= 0) return;
+  runAnswered = false;
+  const rounds = Object.values(room.rounds || {});
+  if (!rounds.length) return;
+  const round = rounds[runQueueIndex % rounds.length];
+  runQueueIndex += 1;
+
+  playerAnswerGrid.classList.remove('hidden');
+  playerAnswerGrid.innerHTML = '';
+  btnManualPlay.classList.add('hidden');
+  round.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'answer-btn';
+    btn.textContent = opt;
+    btn.onclick = () => submitRunAnswer(room, i, round.correctIndex);
+    playerAnswerGrid.appendChild(btn);
+  });
+
+  audioPlayer.src = round.previewUrl;
+  audioPlayer.load();
+  audioPlayer.currentTime = 0;
+  audioPlayer.play().catch(() => { btnManualPlay.classList.remove('hidden'); });
+  btnManualPlay.onclick = () => { audioPlayer.play().catch(() => {}); };
+  playerStatusText.textContent = '🔊 ¡Adivina rápido!';
+
+  clearTimeout(runSongTimer);
+  runSongTimer = setTimeout(() => {
+    if (!runAnswered) submitRunAnswer(room, -1, round.correctIndex);
+  }, RUN_SNIPPET_SECS * 1000);
+}
+function submitRunAnswer(room, optionIndex, correctIndex) {
+  if (runAnswered || runTimeLeft <= 0) return;
+  runAnswered = true;
+  clearTimeout(runSongTimer);
+  audioPlayer.pause();
+  const buttons = playerAnswerGrid.querySelectorAll('.answer-btn');
+  buttons.forEach((b, i) => {
+    b.disabled = true;
+    if (i === correctIndex) b.classList.add('correct');
+    else if (i === optionIndex) b.classList.add('wrong');
+  });
+  const correct = optionIndex === correctIndex;
+  if (correct) {
+    runScore += 1;
+    playCorrectSound();
+    runScoreText.textContent = `Aciertos: ${runScore}`;
+    if (room.settings.mode === 'survival') {
+      runTimeLeft += (room.settings.survivalAdd || 5);
+    }
+  } else {
+    playWrongSound();
+  }
+  roomRef.child('players/' + playerId + '/score').set(runScore);
+  setTimeout(() => {
+    if (runTimeLeft > 0) playNextRunSong(room);
+  }, 500);
+}
+function stopPlayerRun() {
+  clearInterval(runInterval);
+  clearTimeout(runSongTimer);
+  audioPlayer.pause();
+}
+function endPlayerRun() {
+  clearInterval(runInterval);
+  clearTimeout(runSongTimer);
+  audioPlayer.pause();
+  playerTimerWrap.classList.add('hidden');
+  playerAnswerGrid.classList.add('hidden');
+  playerStatusText.textContent = `🏁 ¡Se acabó tu tiempo! Terminaste con ${runScore} aciertos. Esperando a los demás…`;
+  roomRef.child('players/' + playerId + '/score').set(runScore);
 }
 function submitAnswer(index, optionIndex, correctIndex, btnEl) {
   if (answered) return;
@@ -1891,14 +2114,24 @@ function renderPlayerResults(room) {
 }
 function listenAsPlayer() {
   showScreen('player-lobby');
+  runModeStarted = false;
   roomRef.on('value', snap => {
     const room = snap.val();
     if (!room) return;
+    const isRunMode = room.settings && (room.settings.mode === 'blitz' || room.settings.mode === 'survival');
     if (room.status === 'lobby') {
       renderPlayerLobby(room.players || {});
       showScreen('player-lobby');
       lastRenderedRound = -1;
       lastRenderedStatus = 'lobby';
+      runModeStarted = false;
+    } else if (room.status === 'playing' && isRunMode) {
+      showScreen('player-game');
+      if (!runModeStarted) {
+        runModeStarted = true;
+        startPlayerRun(room);
+      }
+      lastRenderedStatus = 'playing';
     } else if (room.status === 'playing') {
       showScreen('player-game');
       if (room.currentRound !== lastRenderedRound || lastRenderedStatus !== 'playing') {
@@ -1913,6 +2146,7 @@ function listenAsPlayer() {
       }
       lastRenderedStatus = 'reveal';
     } else if (room.status === 'finished') {
+      stopPlayerRun();
       renderPlayerResults(room);
       showScreen('player-results');
       lastRenderedStatus = 'finished';

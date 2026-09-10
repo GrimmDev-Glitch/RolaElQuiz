@@ -169,7 +169,9 @@ Al preparar la sala puedes elegir entre cuatro modos:
   principio y se va aclarando con cada "Escuchar más", como pista
   visual extra. Después de la última etapa (15s) se deja sonar el
   resto del fragmento completo en vez de cortarlo en seco, por si
-  todavía no la reconoces.
+  todavía no la reconoces. También hay un botón "▶ Escuchar de
+  nuevo" para repetir el fragmento actual sin avanzar de etapa (no
+  baja los puntos, solo te deja volver a oír lo mismo).
 - **Eliminación** — puntaje normal por velocidad, pero cada cierto
   número de rondas (elegible: cada 2, 3 o 4) el jugador con menos
   puntos entre los que siguen en pie queda eliminado — puede seguir
@@ -182,12 +184,26 @@ Al preparar la sala puedes elegir entre cuatro modos:
   DOBLE de los puntos de esa ronda; si apuestas y fallas, pierdes
   100 puntos de tu marcador (nunca baja de 0). No apostar es la
   opción seguro-de-siempre, con el puntaje normal por velocidad.
+- **Contrarreloj** — todos corren contra el mismo reloj (elegible:
+  30/60/90/120 segundos). Cada jugador escucha canciones una tras
+  otra a su propio ritmo (6 segundos cada una, opción múltiple) y
+  suma un acierto por cada una que adivine bien — no espera a los
+  demás. Gana quien más adivine antes de que se acabe el tiempo. El
+  anfitrión ve un leaderboard en vivo mientras todos juegan a la vez.
+- **Supervivencia** — empiezas con un reloj corto (elegible: 10/15/20
+  segundos) que no para de bajar. Cada acierto te suma segundos
+  (elegible: 3/5/7) para seguir con vida; en cuanto el reloj llega a
+  cero, se acabó tu partida — pero puedes seguir viendo cómo les va a
+  los demás. Como cada quien aguanta un tiempo distinto, el anfitrión
+  termina la partida cuando quiera con el botón "Terminar" para ver
+  los resultados finales.
 - **Solo** — para practicar sin crear una sala ni necesitar amigos:
   eliges tu fuente de canciones normal, le das "Empezar a practicar"
   y juegas tú mismo desde el mismo dispositivo, viendo tu puntaje al
   final. No usa Firebase para nada, así que funciona incluso sin
-  configurar ese paso. (Los modos Progresivo, Eliminación y Apuesta
-  todavía no están disponibles en solitario, solo en salas con
+  configurar ese paso. (Los modos Progresivo, Eliminación, Apuesta,
+  Contrarreloj y Supervivencia todavía no están disponibles en
+  solitario, solo en salas con
   amigos — ahí no tendría con quién competir.)
 
 ## Otras mejoras
