@@ -744,18 +744,25 @@ async function loadPlaylists() {
   try {
     const items = await fetchAllPagesWithRetryStatus('https://api.spotify.com/v1/me/playlists?limit=50');
     playlistSelect.innerHTML = '';
-    if (!items.length) {
+    // Spotify a veces manda "null" en vez de un objeto de playlist para
+    // ciertas playlists algorítmicas/editoriales (Blends incluidos) —
+    // es un bug conocido de su lado. Si no se filtran, rompen el resto
+    // de la lista.
+    const validItems = items.filter(Boolean);
+    const skipped = items.length - validItems.length;
+    if (!validItems.length) {
       playlistSelect.innerHTML = '<option value="">No se encontraron playlists</option>';
       playlistCountStatus.textContent = 'No se encontró ninguna playlist en esta cuenta.';
       return;
     }
-    items.forEach(p => {
+    validItems.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.id;
-      opt.textContent = `${p.name} (${p.tracks.total})`;
+      opt.textContent = `${p.name} (${(p.tracks && p.tracks.total) || 0})`;
       playlistSelect.appendChild(opt);
     });
-    playlistCountStatus.textContent = `Se encontraron ${items.length} playlist(s). ¿No ves la que buscas? Dale a 🔄 para recargar, o pégala manualmente abajo (debe ser pública si no es tuya).`;
+    playlistCountStatus.textContent = `Se encontraron ${validItems.length} playlist(s). ¿No ves la que buscas? Dale a 🔄 para recargar, o pégala manualmente abajo (debe ser pública si no es tuya).`
+      + (skipped > 0 ? ` (${skipped} playlist(s) algorítmica(s)/editorial(es), como Blends, no las manda Spotify en esta lista por un bug de su lado — pégalas manualmente con su link.)` : '');
   } catch (e) {
     console.error(e);
     playlistSelect.innerHTML = '<option value="">Error — revisa el mensaje de abajo</option>';
@@ -931,12 +938,14 @@ function findBestItunesMatch(results, targetName, targetArtist) {
 async function findPreview(track) {
   const artist = track.artists[0] || '';
   const term = `${artist} ${track.name}`.trim();
+  await throttleItunes();
   const data = await itunesSearch(term);
   const best = findBestItunesMatch(data && data.results, track.name, artist);
   if (best) return best.previewUrl;
   // Si la búsqueda combinada no encontró una coincidencia confiable,
   // prueba solo con el nombre de la canción (a veces el nombre del
   // artista no viene escrito igual en Spotify que en iTunes).
+  await throttleItunes();
   const data2 = await itunesSearch(track.name);
   const best2 = findBestItunesMatch(data2 && data2.results, track.name, artist);
   if (best2) return best2.previewUrl;
@@ -1083,6 +1092,16 @@ async function createUniqueRoomCode() {
   return generateRoomCode();
 }
 
+// Control de velocidad para las búsquedas en iTunes: sin esto, pedir
+// muchas canciones seguidas (sobre todo con la búsqueda doble que
+// evita el bug de "canción equivocada") puede disparar el límite de
+// peticiones de iTunes y hacer que deje de responder por completo.
+let lastItunesCallAt = 0;
+async function throttleItunes() {
+  const wait = Math.max(0, lastItunesCallAt + 220 - Date.now());
+  if (wait > 0) await sleep(wait);
+  lastItunesCallAt = Date.now();
+}
 async function buildPreviewPoolFromSource() {
   setupStatus.textContent = 'Cargando tus canciones…';
   const rawPool = await fetchSourcePool();
@@ -1094,15 +1113,28 @@ async function buildPreviewPoolFromSource() {
   }
   normalized = shuffle(normalized);
 
-  const target = Math.max(roundsCount * 3, Math.min(normalized.length, 40));
+  const target = Math.max(roundsCount * 2, Math.min(normalized.length, 30));
   previewPool = [];
+  let checked = 0;
+  let consecutiveMisses = 0;
   setupStatus.textContent = `Buscando audio: 0/${target}`;
   for (const track of normalized) {
     if (previewPool.length >= target) break;
+    checked++;
     const url = await findPreview(track);
     if (url) {
       previewPool.push({ ...track, previewUrl: url });
+      consecutiveMisses = 0;
       setupStatus.textContent = `Buscando audio: ${previewPool.length}/${target}`;
+    } else {
+      consecutiveMisses++;
+    }
+    // Si llevamos muchos intentos seguidos sin encontrar NADA, lo más
+    // probable es que iTunes esté bloqueando/limitando las peticiones
+    // en este momento — mejor avisar claro que quedarse congelado
+    // revisando cientos de canciones una por una.
+    if (previewPool.length === 0 && consecutiveMisses >= 25) {
+      throw new Error('iTunes no está devolviendo resultados de audio en este momento (puede ser un límite de peticiones temporal de su parte). Espera un minuto y vuelve a intentar.');
     }
   }
   if (previewPool.length < 4) {

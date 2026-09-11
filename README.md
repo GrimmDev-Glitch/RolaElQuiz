@@ -270,6 +270,38 @@ celular esté perfectamente sincronizado.
 
 ## Solución de problemas
 
+**Se demora mucho cargando canciones, o se queda en "Buscando audio:
+0/X" sin avanzar**
+
+Esto era un bug real: al agregar la verificación de que el
+artista coincida (para evitar canciones equivocadas, ver más abajo),
+la app terminó haciendo hasta el doble de peticiones a iTunes por
+canción, sin ningún control de velocidad — eso puede disparar el
+límite de peticiones de iTunes y dejarla sin responder por un rato.
+Ya se agregó una pequeña pausa entre peticiones y se bajó un poco la
+cantidad de candidatos que busca de una vez. Si aun así se queda en
+0 después de revisar unas 25 canciones seguidas sin encontrar nada,
+ahora corta con un mensaje claro en vez de quedarse pegada
+revisando cientos de canciones una por una — espera un minuto y
+vuelve a intentar (es un límite temporal de iTunes, no tuyo).
+
+**"Error cargando playlists" — otra causa posible además del bug de
+CORS de Spotify**
+
+Encontré un bug real y documentado por Spotify: el endpoint que
+lista tus playlists a veces manda `null` en vez de la playlist real
+para las playlists algorítmicas o editoriales de Spotify — **los
+Blends son exactamente ese caso**. Si no se filtra, eso rompía toda
+la lista con un error del mismo tipo que el bug de CORS, así que
+probablemente estuvimos combinando ambos problemas sin darnos
+cuenta. Ya se filtra explícitamente y, si detecta que Spotify se
+saltó alguna, te avisa cuántas fueron para que sepas que tienes que
+pegarlas manualmente con su link (los Blends no se pueden listar por
+este bug de Spotify, pero sí se pueden usar pegando su link directo,
+mientras seas tú quien los creó).
+
+
+
 **403 en una playlist que confirmaste que SÍ es tuya (no Blend), tanto
 por el link como por el desplegable**
 

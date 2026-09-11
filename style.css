@@ -203,6 +203,12 @@ body {
   font-weight: 600;
 }
 .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tabs--grid4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  justify-content: center;
+  width: 100%;
+}
 .tab {
   flex: 1;
   background: var(--bg-raised);
@@ -215,6 +221,7 @@ body {
   font-size: 0.85rem;
   cursor: pointer;
 }
+.tabs--grid4 .tab { flex: none; width: 100%; min-width: 0; }
 .tab.active { border-color: var(--coral); color: var(--text); }
 .source-panel { display: none; }
 .source-panel.active { display: block; }
@@ -443,3 +450,7 @@ body {
 /* Paginación del buscador de playlists */
 .pager { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 6px; }
 .btn--sm { padding: 6px 12px; font-size: 0.8rem; }
+
+@media (max-width: 480px) {
+  .tabs--grid4 { grid-template-columns: repeat(2, 1fr); }
+}
