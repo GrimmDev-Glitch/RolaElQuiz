@@ -204,8 +204,8 @@ body {
 }
 .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
 .tabs--grid4 {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
   justify-content: center;
   width: 100%;
 }

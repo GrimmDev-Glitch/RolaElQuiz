@@ -6,7 +6,7 @@
 <title>RolaElQuiz — Adivina la canción con Spotify</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
@@ -62,7 +62,7 @@
       <div id="source-playlist" class="source-panel">
         <div class="row-inline">
           <select id="playlist-select" class="select">
-            <option value="">Cargando tus playlists…</option>
+            <option value="">Sin cargar — usa 🔄, el buscador, o pega el link</option>
           </select>
           <button id="btn-reload-playlists" class="btn btn--ghost btn--icon" title="Recargar lista">🔄</button>
         </div>
@@ -381,6 +381,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>

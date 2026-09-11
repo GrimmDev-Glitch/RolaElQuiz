@@ -765,10 +765,10 @@ async function loadPlaylists() {
       + (skipped > 0 ? ` (${skipped} playlist(s) algorítmica(s)/editorial(es), como Blends, no las manda Spotify en esta lista por un bug de su lado — pégalas manualmente con su link.)` : '');
   } catch (e) {
     console.error(e);
-    playlistSelect.innerHTML = '<option value="">Error — revisa el mensaje de abajo</option>';
+    playlistSelect.innerHTML = '<option value="">No se pudo cargar — usa el link manual</option>';
     let msg = describeSpotifyError(e);
     if (e instanceof TypeError) {
-      msg += ' Mientras tanto: copia el link de cada playlist o Blend desde la app de Spotify (Compartir → Copiar link) y pégalo en el campo de abajo — esa llamada es distinta y suele funcionar aunque esta falle. Ojo: el buscador de aquí abajo solo encuentra playlists PÚBLICAS del catálogo de Spotify, no tu biblioteca privada, así que para tus playlists propias y Blends el link manual es la única vía mientras Spotify no arregle esto de su lado.';
+      msg = 'No se pudo cargar la lista (bug conocido de Spotify, sin resolver por ahora). Usa el buscador o pega el link de tu playlist/Blend abajo (Compartir → Copiar link en Spotify) — eso sí funciona.';
     }
     playlistCountStatus.textContent = msg;
     playlistCountStatus.classList.add('error-text');
@@ -2214,8 +2214,9 @@ btnLogout.onclick = logout;
   const loggedIn = wasHostLogin ? await handleRedirectIfPresent() : false;
   if (loggedIn) {
     showScreen('host-setup');
-    await sleep(400);
-    loadPlaylists();
+    // La carga automática de la lista de playlists está desactivada
+    // por ahora (bug activo de Spotify, ver README) — usa el botón
+    // 🔄 si quieres intentarlo, o el buscador / link manual de abajo.
   } else {
     showScreen('role');
   }
