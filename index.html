@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RolaElQuiz — Adivina la canción con Spotify</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+
+<div class="stage">
+
+  <canvas id="confetti-canvas"></canvas>
+  <div id="inapp-browser-warning" class="inapp-warning hidden"></div>
+  <div id="global-error-banner" class="global-error hidden"></div>
+  <p id="conn-status" class="conn-status">Conectando con el servidor de sincronización…</p>
+
+  <!-- PANTALLA 0: ELEGIR ROL -->
+  <section id="screen-role" class="screen active">
+    <div class="disc disc--hero" aria-hidden="true">
+      <div class="disc__label"></div>
+    </div>
+    <h1 class="title">RolaElQuiz</h1>
+    <p class="subtitle">Adivina canciones de Spotify con tus amigos, aunque estén en otro país.</p>
+    <button id="btn-role-host" class="btn btn--primary btn--wide">Soy el anfitrión (conecto Spotify)</button>
+    <button id="btn-role-player" class="btn btn--ghost btn--wide">Soy jugador (me uno con un código)</button>
+    <p class="fineprint">Solo el anfitrión necesita cuenta de Spotify. Los jugadores solo necesitan el código de la sala.</p>
+  </section>
+
+  <!-- PANTALLA: LOGIN (solo anfitrión) -->
+  <section id="screen-login" class="screen">
+    <div class="disc disc--hero" aria-hidden="true">
+      <div class="disc__label"></div>
+    </div>
+    <h1 class="title">Conecta tu Spotify</h1>
+    <p class="subtitle">Vas a elegir tus canciones y crear la sala para que tus amigos entren.</p>
+    <button id="btn-login" class="btn btn--primary">Conectar con Spotify</button>
+    <p id="login-error" class="error hidden"></p>
+    <button id="btn-back-role-login" class="link-btn">← Volver</button>
+  </section>
+
+  <!-- PANTALLA: CONFIGURACIÓN DEL ANFITRIÓN -->
+  <section id="screen-host-setup" class="screen">
+    <div class="game-topbar">
+      <h2 class="title title--sm" style="margin:0;">Prepara la sala</h2>
+      <button id="btn-logout" class="link-btn">Cerrar sesión</button>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">Fuente de canciones</span>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-source="liked">Mis Me Gusta</button>
+        <button class="tab" data-source="playlist">Una playlist</button>
+      </div>
+
+      <div id="source-liked" class="source-panel active">
+        <p class="hint">Se usarán tus canciones guardadas ("Me Gusta") en Spotify.</p>
+      </div>
+
+      <div id="source-playlist" class="source-panel">
+        <div class="row-inline">
+          <select id="playlist-select" class="select">
+            <option value="">Sin cargar — usa 🔄, el buscador, o pega el link</option>
+          </select>
+          <button id="btn-reload-playlists" class="btn btn--ghost btn--icon" title="Recargar lista">🔄</button>
+        </div>
+        <p id="playlist-count-status" class="hint"></p>
+        <p class="hint">Aquí también aparece cualquier Blend que hayas creado — se lee como una playlist normal.</p>
+
+        <p class="hint" style="margin-top:14px;">¿No la ves en la lista, o es de otra cuenta? Pega el link aquí (debe ser pública):</p>
+        <div class="add-player">
+          <input id="playlist-url-input" type="text" placeholder="https://open.spotify.com/playlist/..." />
+          <button id="btn-use-playlist-url" class="btn btn--ghost">Usar</button>
+        </div>
+        <p id="playlist-url-status" class="hint hidden"></p>
+
+        <p class="hint" style="margin-top:14px;">O búscala por nombre — <strong>ojo:</strong> este buscador solo encuentra playlists PÚBLICAS del catálogo de Spotify (no tu biblioteca privada ni tus Blends), y aun encontrándola solo la vas a poder usar si es tuya o si colaboras en ella:</p>
+        <div class="add-player">
+          <input id="playlist-search-input" type="text" placeholder="Nombre de la playlist…" />
+          <button id="btn-search-playlists" class="btn btn--ghost">Buscar</button>
+        </div>
+        <div id="playlist-search-results" class="chips chips--selectable"></div>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">Modo de juego</span>
+      <div class="tabs tabs--grid4" role="tablist">
+        <button class="tab mode-tab active" data-mode="normal">Normal (puntos por velocidad)</button>
+        <button class="tab mode-tab" data-mode="sudden">Muerte súbita</button>
+        <button class="tab mode-tab" data-mode="progressive">Progresivo (1s, 3s, 6s…)</button>
+        <button class="tab mode-tab" data-mode="elimination">Eliminación</button>
+        <button class="tab mode-tab" data-mode="bet">Apuesta doble o nada</button>
+        <button class="tab mode-tab" data-mode="blitz">Contrarreloj (cuántas puedas)</button>
+        <button class="tab mode-tab" data-mode="survival">Supervivencia (el reloj baja)</button>
+        <button class="tab mode-tab" data-mode="solo">Solo (practicar sin sala)</button>
+      </div>
+      <p id="mode-hint" class="hint">El primero en acertar se lleva 100 puntos, bajando hasta un piso de 50 para los siguientes.</p>
+      <div id="elimination-field" class="field-group field-group--inline hidden">
+        <span class="field-label">Eliminar al último lugar cada:</span>
+        <select id="elimination-every-select" class="select select--sm">
+          <option value="2">2 rondas</option>
+          <option value="3" selected>3 rondas</option>
+          <option value="4">4 rondas</option>
+        </select>
+      </div>
+      <div id="blitz-field" class="field-group field-group--inline hidden">
+        <span class="field-label">Tiempo total</span>
+        <select id="blitz-seconds-select" class="select select--sm">
+          <option value="30">30 segundos</option>
+          <option value="60" selected>60 segundos</option>
+          <option value="90">90 segundos</option>
+          <option value="120">120 segundos</option>
+        </select>
+      </div>
+      <div id="survival-field" class="field-row hidden">
+        <div class="field-group field-group--inline">
+          <span class="field-label">Empiezas con</span>
+          <select id="survival-start-select" class="select select--sm">
+            <option value="10">10 segundos</option>
+            <option value="15" selected>15 segundos</option>
+            <option value="20">20 segundos</option>
+          </select>
+        </div>
+        <div class="field-group field-group--inline">
+          <span class="field-label">Por cada acierto sumas</span>
+          <select id="survival-add-select" class="select select--sm">
+            <option value="3">3 segundos</option>
+            <option value="5" selected>5 segundos</option>
+            <option value="7">7 segundos</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-group field-group--inline">
+        <span class="field-label">Rondas</span>
+        <select id="rounds-select" class="select select--sm">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+        </select>
+      </div>
+      <div id="snippet-field" class="field-group field-group--inline">
+        <span class="field-label">Duración del fragmento</span>
+        <select id="snippet-select" class="select select--sm">
+          <option value="5">5 segundos</option>
+          <option value="10" selected>10 segundos</option>
+          <option value="15">15 segundos</option>
+          <option value="30">Canción completa (30s)</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="btn-create-room" class="btn btn--primary btn--wide">Crear sala</button>
+    <p id="setup-status" class="hint"></p>
+  </section>
+
+  <!-- PANTALLA: JUEGO EN SOLITARIO -->
+  <section id="screen-solo-game" class="screen">
+    <div class="game-topbar">
+      <span id="solo-round-counter" class="round-counter">Ronda 1/10</span>
+      <button id="btn-quit-solo" class="link-btn">Terminar</button>
+    </div>
+
+    <div class="disc-wrap">
+      <div id="solo-disc" class="disc">
+        <img id="solo-disc-art" class="disc__art hidden" alt="" />
+        <div class="disc__label"></div>
+      </div>
+    </div>
+
+    <div id="solo-timer-wrap" class="timer-wrap hidden">
+      <div class="timer-bar-track"><div id="solo-timer-bar" class="timer-bar-fill"></div></div>
+      <span id="solo-timer-text" class="timer-text"></span>
+    </div>
+
+    <div class="volume-control">
+      <span>🔊</span>
+      <input id="solo-volume" type="range" min="0" max="1" step="0.05" value="0.8" />
+    </div>
+
+    <p id="solo-status-text" class="hint" style="text-align:center;">Prepárate…</p>
+    <p id="solo-score-text" class="hint" style="text-align:center;">Puntaje: 0</p>
+    <button id="btn-solo-manual-play" class="btn btn--ghost hidden">🔊 ¿No escuchas nada? Toca aquí</button>
+
+    <div id="solo-answer-grid" class="answer-grid"></div>
+
+    <div id="solo-reveal" class="reveal-card hidden">
+      <p id="solo-reveal-banner" class="reveal-banner"></p>
+      <img id="solo-reveal-art" class="reveal-art hidden" alt="" />
+      <p id="solo-reveal-title" class="reveal-title"></p>
+      <p id="solo-reveal-artist" class="reveal-artist"></p>
+      <button id="btn-solo-next" class="btn btn--primary btn--wide">Siguiente canción</button>
+    </div>
+
+    <audio id="solo-audio-player" preload="auto"></audio>
+  </section>
+
+  <!-- PANTALLA: RESULTADOS SOLO -->
+  <section id="screen-solo-results" class="screen">
+    <h2 class="title title--sm">¡Terminaste!</h2>
+    <p id="solo-final-score" class="winner-banner"></p>
+    <button id="btn-solo-play-again" class="btn btn--primary btn--wide">Jugar otra vez</button>
+    <button id="btn-solo-new-setup" class="btn btn--ghost btn--wide">Nueva configuración</button>
+  </section>
+
+  <!-- PANTALLA: SALA DE ESPERA (ANFITRIÓN) -->
+  <section id="screen-host-lobby" class="screen">
+    <h2 class="title title--sm">Sala lista</h2>
+    <p class="hint">Comparte este código con tus amigos:</p>
+    <div class="room-code" id="room-code-display">------</div>
+    <p class="field-label" style="align-self:flex-start;">Jugadores conectados</p>
+    <div id="host-players-list" class="chips"></div>
+    <button id="btn-start-game" class="btn btn--primary btn--wide" disabled>Empezar partida</button>
+    <p class="hint">El botón se activa apenas se una al menos un amigo.</p>
+    <button id="btn-cancel-room" class="link-btn">Cancelar sala</button>
+  </section>
+
+  <!-- PANTALLA: JUEGO (VISTA ANFITRIÓN) -->
+  <section id="screen-host-game" class="screen">
+    <div class="game-topbar">
+      <span id="host-round-counter" class="round-counter">Ronda 1/10</span>
+      <button id="btn-quit-host-game" class="link-btn">Terminar</button>
+    </div>
+
+    <div class="disc-wrap">
+      <div id="host-disc" class="disc">
+        <img id="host-disc-art" class="disc__art hidden" alt="" />
+        <div class="disc__label"></div>
+      </div>
+    </div>
+
+    <div id="host-timer-wrap" class="timer-wrap hidden">
+      <div class="timer-bar-track"><div id="host-timer-bar" class="timer-bar-fill"></div></div>
+      <span id="host-timer-text" class="timer-text"></span>
+    </div>
+
+    <div class="volume-control">
+      <span>🔊</span>
+      <input id="host-volume" type="range" min="0" max="1" step="0.05" value="0.8" />
+    </div>
+
+    <p id="host-game-status" class="hint" style="text-align:center;">Preparando…</p>
+    <p id="host-answer-count" class="hint" style="text-align:center;"></p>
+
+    <div id="host-run-live" class="hidden" style="width:100%;">
+      <p class="field-label" style="align-self:center;">Leaderboard en vivo</p>
+      <div id="host-run-leaderboard" class="results-list results-list--compact"></div>
+    </div>
+
+    <div id="host-playing-options" class="answer-grid answer-grid--readonly hidden"></div>
+
+    <div id="host-reveal-card" class="reveal-card hidden">
+      <p id="host-reveal-title" class="reveal-title"></p>
+      <p id="host-reveal-artist" class="reveal-artist"></p>
+
+      <p class="field-label" style="align-self:center; margin-top:14px;">Opciones de esta ronda</p>
+      <div id="host-reveal-options" class="answer-grid answer-grid--readonly"></div>
+      <p id="host-eliminated-banner" class="hint error-text hidden" style="text-align:center;"></p>
+
+      <p class="field-label" style="align-self:center; margin-top:14px;">Quién acertó</p>
+      <div id="host-round-answers" class="results-list results-list--compact"></div>
+
+      <p class="field-label" style="align-self:center; margin-top:14px;">Leaderboard general</p>
+      <div id="host-round-leaderboard" class="results-list results-list--compact"></div>
+    </div>
+
+    <button id="btn-next-round" class="btn btn--primary btn--wide hidden">Siguiente canción</button>
+
+    <audio id="host-audio-player" preload="auto"></audio>
+  </section>
+
+  <!-- PANTALLA: RESULTADOS (ANFITRIÓN) -->
+  <section id="screen-host-results" class="screen">
+    <h2 class="title title--sm">Resultados</h2>
+    <p id="host-winner-banner" class="winner-banner"></p>
+    <div id="host-fun-facts" class="fun-facts"></div>
+    <div id="host-results-list" class="results-list"></div>
+    <button id="btn-play-again-host" class="btn btn--primary btn--wide">Jugar otra vez (misma sala)</button>
+    <button id="btn-new-setup-host" class="btn btn--ghost btn--wide">Nueva configuración</button>
+  </section>
+
+  <!-- PANTALLA: UNIRSE (JUGADOR) -->
+  <section id="screen-player-join" class="screen">
+    <div class="disc disc--hero" aria-hidden="true">
+      <div class="disc__label"></div>
+    </div>
+    <h1 class="title title--sm">Unirte a una sala</h1>
+    <div class="field-group">
+      <span class="field-label">Código de la sala</span>
+      <input id="join-code-input" class="select" type="text" placeholder="Ej. AB3X9" maxlength="8" style="text-transform:uppercase;" />
+    </div>
+    <div class="field-group">
+      <span class="field-label">Tu nombre</span>
+      <input id="join-name-input" class="select" type="text" placeholder="¿Cómo te llamas?" maxlength="20" />
+    </div>
+    <button id="btn-join-room" class="btn btn--primary btn--wide">Unirme</button>
+    <p id="join-error" class="error hidden"></p>
+    <button id="btn-back-role-player" class="link-btn">← Volver</button>
+  </section>
+
+  <!-- PANTALLA: SALA DE ESPERA (JUGADOR) -->
+  <section id="screen-player-lobby" class="screen">
+    <h2 class="title title--sm">Estás dentro 🎉</h2>
+    <p class="hint">Esperando a que el anfitrión empiece la partida…</p>
+    <p class="field-label" style="align-self:flex-start;">Jugadores en la sala</p>
+    <div id="player-lobby-list" class="chips"></div>
+    <button id="btn-leave-lobby" class="link-btn">Salir de la sala</button>
+  </section>
+
+  <!-- PANTALLA: JUEGO (VISTA JUGADOR) -->
+  <section id="screen-player-game" class="screen">
+    <span id="player-round-counter" class="round-counter">Ronda 1/10</span>
+    <p id="run-score-text" class="points-label hidden">Aciertos: 0</p>
+
+    <div class="disc-wrap">
+      <div id="player-disc" class="disc">
+        <img id="player-disc-art" class="disc__art hidden" alt="" />
+        <div class="disc__label"></div>
+      </div>
+    </div>
+
+    <div id="player-timer-wrap" class="timer-wrap hidden">
+      <div class="timer-bar-track"><div id="player-timer-bar" class="timer-bar-fill"></div></div>
+      <span id="player-timer-text" class="timer-text"></span>
+    </div>
+
+    <div class="volume-control">
+      <span>🔊</span>
+      <input id="player-volume" type="range" min="0" max="1" step="0.05" value="0.8" />
+    </div>
+
+    <p id="player-status-text" class="hint" style="text-align:center;">Prepárate…</p>
+    <button id="btn-manual-play" class="btn btn--ghost hidden">🔊 ¿No escuchas nada? Toca aquí</button>
+
+    <div id="progressive-controls" class="hidden" style="width:100%;">
+      <p id="progressive-points-label" class="points-label">Vale 100 pts</p>
+      <button id="btn-progressive-replay" class="btn btn--ghost">▶ Escuchar de nuevo</button>
+      <button id="btn-progressive-skip" class="btn btn--ghost btn--wide">⏭ Escuchar más (baja los puntos)</button>
+    </div>
+
+    <div id="bet-controls" class="hidden" style="width:100%;">
+      <button id="btn-place-bet" class="btn btn--ghost btn--wide">💰 Apostar doble o nada esta ronda</button>
+      <p id="bet-status" class="hint hidden"></p>
+    </div>
+
+    <p id="eliminated-notice" class="hint error-text hidden" style="text-align:center;"></p>
+
+    <div id="player-answer-grid" class="answer-grid"></div>
+
+    <div id="player-reveal" class="reveal-card hidden">
+      <p id="player-reveal-banner" class="reveal-banner"></p>
+      <p id="player-points-text" class="hint" style="text-align:center;"></p>
+      <img id="player-reveal-art" class="reveal-art hidden" alt="" />
+      <p id="player-reveal-title" class="reveal-title"></p>
+      <p id="player-reveal-artist" class="reveal-artist"></p>
+      <p class="field-label" style="align-self:center; margin-top:14px;">Leaderboard</p>
+      <div id="player-round-leaderboard" class="results-list results-list--compact"></div>
+      <p id="player-eliminated-banner" class="hint error-text hidden" style="text-align:center;"></p>
+    </div>
+
+    <audio id="audio-player" preload="auto"></audio>
+  </section>
+
+  <!-- PANTALLA: RESULTADOS (JUGADOR) -->
+  <section id="screen-player-results" class="screen">
+    <h2 class="title title--sm">Resultados</h2>
+    <p id="player-winner-banner" class="winner-banner"></p>
+    <div id="player-fun-facts" class="fun-facts"></div>
+    <div id="player-results-list" class="results-list"></div>
+    <p class="hint">Quédate en esta sala, esperando a que el anfitrión mande la partida.</p>
+    <button id="btn-player-back-join" class="btn btn--ghost btn--wide">Salir de la sala</button>
+  </section>
+
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>
