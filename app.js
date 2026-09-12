@@ -759,6 +759,8 @@ async function loadPlaylists() {
       const opt = document.createElement('option');
       opt.value = p.id;
       opt.textContent = `${p.name} (${(p.tracks && p.tracks.total) || 0})`;
+      opt.dataset.url = (p.external_urls && p.external_urls.spotify) || '';
+      opt.dataset.name = p.name;
       playlistSelect.appendChild(opt);
     });
     playlistCountStatus.textContent = `Se encontraron ${validItems.length} playlist(s). ¿No ves la que buscas? Dale a 🔄 para recargar, o pégala manualmente abajo (debe ser pública si no es tuya).`
@@ -785,6 +787,17 @@ function extractPlaylistId(input) {
   if (/^[a-zA-Z0-9]{10,}$/.test(raw)) return raw;
   return null;
 }
+// Al elegir una playlist del desplegable, rellena también el campo de
+// link de abajo con su URL — así queda claro cuál se va a usar, y se
+// puede confirmar con el mismo botón "Usar" del link manual.
+playlistSelect.onchange = () => {
+  const opt = playlistSelect.selectedOptions[0];
+  if (!opt || !opt.value) return;
+  manualPlaylistId = opt.value;
+  playlistUrlInput.value = opt.dataset.url || opt.value;
+  playlistUrlStatus.classList.remove('hidden');
+  playlistUrlStatus.textContent = `Elegiste "${opt.dataset.name || opt.textContent}" desde tu lista — lista para usar.`;
+};
 btnUsePlaylistUrl.onclick = () => {
   const id = extractPlaylistId(playlistUrlInput.value);
   playlistUrlStatus.classList.remove('hidden');
