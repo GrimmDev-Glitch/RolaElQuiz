@@ -113,9 +113,22 @@ actualizar también el Redirect URI en el Dashboard de Spotify.
 
 ## Cómo se juega
 
-**El anfitrión:**
-1. En la pantalla inicial, elige "Soy el anfitrión" → conecta
-   Spotify.
+En la pantalla inicial hay tres caminos:
+
+- **🎧 Modo Solo (practicar)** — para jugar tú solo, en tu celular o
+  compu, sin crear sala ni esperar a nadie. Conecta tu Spotify,
+  elige la fuente de canciones y el modo de juego, y le das
+  "Empezar a practicar". Disponible en Solo: **Normal, Progresivo,
+  Apuesta doble o nada, Contrarreloj y Supervivencia** (Muerte
+  súbita y Eliminación no aplican solo, porque dependen de que haya
+  más gente con quien compararte).
+- **🎉 Multijugador (crear sala)** — para jugar con amigos en tiempo
+  real, cada quien desde su propio dispositivo.
+- **🔑 Unirme a una sala** — para entrar a la sala que armó un amigo,
+  solo con el código.
+
+**El anfitrión de una sala multijugador:**
+1. Elige "Multijugador" → conecta Spotify.
 2. Elige la fuente: Me Gusta, una playlist (o pega su link
    manualmente), cuántas rondas y qué tan largo es cada fragmento.
 3. "Crear sala" — te da un código de 5 letras para compartir.
@@ -127,8 +140,8 @@ actualizar también el Redirect URI en el Dashboard de Spotify.
    sala (tus amigos no necesitan volver a escribir el código), o
    "Nueva configuración" para armar otra sala desde cero.
 
-**Cada amigo (jugador):**
-1. Abre el mismo link, elige "Soy jugador".
+**Cada amigo que se une a esa sala:**
+1. Abre el mismo link, elige "Unirme a una sala".
 2. Escribe el código de la sala y su nombre.
 3. Cuando el anfitrión empieza, el fragmento suena directo en su
    propio dispositivo (con control de volumen y un contador de
@@ -140,9 +153,19 @@ actualizar también el Redirect URI en el Dashboard de Spotify.
    falta volver a escribir el código si el anfitrión da "Jugar otra
    vez"; para irse de verdad está el botón "Salir de la sala".
 
+## Fuente de canciones
+
+Ya no hay que elegir entre "Me Gusta" o "una playlist" con pestañas
+separadas: todo está junto. Por defecto se usan tus Me Gusta (chip
+marcado); en cuanto eliges, pegas, o buscas una playlist, se usa esa
+en su lugar automáticamente.
+
 ## Modos de juego
 
-Al preparar la sala puedes elegir entre cuatro modos:
+Al preparar la partida (solo o en sala) puedes elegir entre varios
+modos — los que aparecen cambian según si entraste por "Modo Solo" o
+por "Multijugador":
+
 
 - **Normal** — puntos por velocidad, como se explica abajo (100 a 50).
 - **Muerte súbita** — cada ronda vale igual: solo quien acierta
@@ -151,10 +174,13 @@ Al preparar la sala puedes elegir entre cuatro modos:
   empatados en primer lugar, se juega automáticamente una ronda
   extra SOLO entre los empatados para desempatar (quien acierte
   primero ahí, gana).
-- **Progresivo** — cada canción empieza sonando solo 1 segundo. Si no
-  la reconoces todavía, cada jugador tiene su propio botón "Escuchar
-  más" para que le suene un poco más — pero entre más escuchas, menos
-  vale acertar:
+- **Progresivo** — modo de **un solo jugador** (no crea sala, no hay
+  que esperar a nadie — juega desde el celular o la compu que
+  quieras). En vez de opción múltiple, escribes el nombre de la
+  canción en un campo de texto. Cada canción empieza sonando solo 1
+  segundo; si escribes algo y no es, pasa sola a la siguiente
+  duración para que sigas escuchando e intentes de nuevo — pero
+  entre más avanza, menos vale acertar:
 
   | Escuchaste hasta... | Vale si aciertas |
   |---|---|
@@ -164,14 +190,15 @@ Al preparar la sala puedes elegir entre cuatro modos:
   | 10 segundos | 40 pts |
   | 15 segundos | 20 pts |
 
-  Cada jugador avanza a su propio ritmo — no está sincronizado como
-  en los otros modos. La portada del álbum también se ve borrosa al
-  principio y se va aclarando con cada "Escuchar más", como pista
-  visual extra. Después de la última etapa (15s) se deja sonar el
-  resto del fragmento completo en vez de cortarlo en seco, por si
-  todavía no la reconoces. También hay un botón "▶ Escuchar de
-  nuevo" para repetir el fragmento actual sin avanzar de etapa (no
-  baja los puntos, solo te deja volver a oír lo mismo).
+  No hace falta escribir el nombre exacto letra por letra — tolera
+  mayúsculas/acentos, "feat.", y pequeños errores de tipeo. La
+  portada del álbum se ve borrosa al principio y se va aclarando en
+  cada avance, como pista visual extra. Después de la última etapa
+  (15s) se deja sonar el resto del fragmento completo en vez de
+  cortarlo en seco, por si todavía no la reconoces. También hay un
+  botón "▶ Escuchar de nuevo" para repetir la duración actual sin
+  avanzar de etapa (no baja los puntos, solo te deja volver a oír lo
+  mismo).
 - **Eliminación** — puntaje normal por velocidad, pero cada cierto
   número de rondas (elegible: cada 2, 3 o 4) el jugador con menos
   puntos entre los que siguen en pie queda eliminado — puede seguir
@@ -201,10 +228,10 @@ Al preparar la sala puedes elegir entre cuatro modos:
   eliges tu fuente de canciones normal, le das "Empezar a practicar"
   y juegas tú mismo desde el mismo dispositivo, viendo tu puntaje al
   final. No usa Firebase para nada, así que funciona incluso sin
-  configurar ese paso. (Los modos Progresivo, Eliminación, Apuesta,
-  Contrarreloj y Supervivencia todavía no están disponibles en
-  solitario, solo en salas con
-  amigos — ahí no tendría con quién competir.)
+  configurar ese paso. (Eliminación, Apuesta, Contrarreloj y
+  Supervivencia siguen siendo solo de sala con amigos — no tendría
+  con quién competir en solitario. El modo Progresivo es la
+  excepción: es de un solo jugador por diseño, ver arriba.)
 
 ## Otras mejoras
 

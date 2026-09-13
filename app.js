@@ -45,7 +45,8 @@ let manualPlaylistId = null;
 let previewPool = [];
 let roundsCount = 10;
 let snippetLength = 10;
-let gameMode = 'normal'; // 'normal' | 'sudden' | 'solo'
+let gameMode = 'normal'; // 'normal' | 'sudden' | 'progressive' | 'elimination' | 'bet' | 'blitz' | 'survival'
+let entryContext = 'multiplayer'; // 'solo' | 'multiplayer' — por dónde entró a la pantalla de preparar
 
 let db = null;
 let serverTimeOffset = 0;
@@ -236,6 +237,7 @@ function playWrongSound() { beep(180, 300, 'sawtooth'); }
 function playTickSound() { beep(1000, 60, 'square'); }
 
 // ---------- Elementos ----------
+const btnRoleSolo = document.getElementById('btn-role-solo');
 const btnRoleHost = document.getElementById('btn-role-host');
 const btnRolePlayer = document.getElementById('btn-role-player');
 const btnBackRoleLogin = document.getElementById('btn-back-role-login');
@@ -357,6 +359,13 @@ const soloStatusText = document.getElementById('solo-status-text');
 const soloScoreText = document.getElementById('solo-score-text');
 const btnSoloManualPlay = document.getElementById('btn-solo-manual-play');
 const soloAnswerGrid = document.getElementById('solo-answer-grid');
+const soloBetControls = document.getElementById('solo-bet-controls');
+const btnSoloPlaceBet = document.getElementById('btn-solo-place-bet');
+const soloProgressiveControls = document.getElementById('solo-progressive-controls');
+const soloProgressivePointsLabel = document.getElementById('solo-progressive-points-label');
+const btnSoloProgressiveReplay = document.getElementById('btn-solo-progressive-replay');
+const soloProgressiveGuessInput = document.getElementById('solo-progressive-guess-input');
+const btnSoloProgressiveGuess = document.getElementById('btn-solo-progressive-guess');
 const soloReveal = document.getElementById('solo-reveal');
 const soloRevealBanner = document.getElementById('solo-reveal-banner');
 const soloRevealArt = document.getElementById('solo-reveal-art');
@@ -375,6 +384,7 @@ let soloRounds = [];
 let soloIndex = 0;
 let soloScore = 0;
 let soloAnswered = false;
+let soloBet = false;
 let soloTimerInterval = null;
 
 function startSoloGame() {
@@ -385,9 +395,122 @@ function startSoloGame() {
   showScreen('solo-game');
   setupSoloRound();
 }
+// ---------- Contrarreloj / Supervivencia en solitario ----------
+let soloRunMode = null;
+let soloRunTimeLeft = 0;
+let soloRunInterval = null;
+let soloRunSongTimer = null;
+let soloRunAnswered = false;
+let soloRunQueueIndex = 0;
+const SOLO_RUN_SNIPPET_SECS = 6;
+function startSoloRunMode(mode) {
+  soloRunMode = mode;
+  soloRounds = Object.values(buildRoundsFromPool());
+  soloRunQueueIndex = 0;
+  soloScore = 0;
+  soloRunAnswered = false;
+  soloRunTimeLeft = mode === 'survival' ? (parseInt(survivalStartSelect.value, 10) || 15) : (parseInt(blitzSecondsSelect.value, 10) || 60);
+  soloScoreText.textContent = 'Aciertos: 0';
+  soloProgressiveControls.classList.add('hidden');
+  soloBetControls.classList.add('hidden');
+  soloReveal.classList.add('hidden');
+  soloDiscArt.classList.add('hidden');
+  soloRoundCounter.textContent = mode === 'survival' ? '🏃 Supervivencia' : '⏱ Contrarreloj';
+  showScreen('solo-game');
+  startSoloRunClock();
+  playNextSoloRunSong();
+}
+function startSoloRunClock() {
+  clearInterval(soloRunInterval);
+  const maxForBar = soloRunMode === 'survival'
+    ? (parseInt(survivalStartSelect.value, 10) || 15) + (parseInt(survivalAddSelect.value, 10) || 5) * 3
+    : soloRunTimeLeft;
+  soloTimerWrap.classList.remove('hidden');
+  const updateBar = () => {
+    soloTimerText.textContent = Math.ceil(soloRunTimeLeft) + 's';
+    const pct = Math.max(0, Math.min(100, (soloRunTimeLeft / maxForBar) * 100));
+    soloTimerBar.style.width = pct + '%';
+    soloTimerBar.classList.toggle('urgent', soloRunTimeLeft <= 5);
+  };
+  updateBar();
+  soloRunInterval = setInterval(() => {
+    soloRunTimeLeft -= 1;
+    updateBar();
+    if (soloRunTimeLeft <= 0) endSoloRunMode();
+  }, 1000);
+}
+function playNextSoloRunSong() {
+  if (soloRunTimeLeft <= 0) return;
+  soloRunAnswered = false;
+  const round = soloRounds[soloRunQueueIndex % soloRounds.length];
+  soloRunQueueIndex += 1;
+
+  soloAnswerGrid.classList.remove('hidden');
+  soloAnswerGrid.innerHTML = '';
+  btnSoloManualPlay.classList.add('hidden');
+  round.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'answer-btn';
+    btn.textContent = opt;
+    btn.onclick = () => submitSoloRunAnswer(i, round.correctIndex);
+    soloAnswerGrid.appendChild(btn);
+  });
+
+  soloAudioPlayer.src = round.previewUrl;
+  soloAudioPlayer.load();
+  soloAudioPlayer.currentTime = 0;
+  soloAudioPlayer.play().catch(() => { btnSoloManualPlay.classList.remove('hidden'); });
+  btnSoloManualPlay.onclick = () => { soloAudioPlayer.play().catch(() => {}); };
+  soloDisc.classList.add('spinning');
+  soloStatusText.textContent = '🔊 ¡Adivina rápido!';
+
+  clearTimeout(soloRunSongTimer);
+  soloRunSongTimer = setTimeout(() => {
+    if (!soloRunAnswered) submitSoloRunAnswer(-1, round.correctIndex);
+  }, SOLO_RUN_SNIPPET_SECS * 1000);
+}
+function submitSoloRunAnswer(optionIndex, correctIndex) {
+  if (soloRunAnswered || soloRunTimeLeft <= 0) return;
+  soloRunAnswered = true;
+  clearTimeout(soloRunSongTimer);
+  soloAudioPlayer.pause();
+  const buttons = soloAnswerGrid.querySelectorAll('.answer-btn');
+  buttons.forEach((b, i) => {
+    b.disabled = true;
+    if (i === correctIndex) b.classList.add('correct');
+    else if (i === optionIndex) b.classList.add('wrong');
+  });
+  const correct = optionIndex === correctIndex;
+  if (correct) {
+    soloScore += 1;
+    playCorrectSound();
+    soloScoreText.textContent = `Aciertos: ${soloScore}`;
+    if (soloRunMode === 'survival') soloRunTimeLeft += (parseInt(survivalAddSelect.value, 10) || 5);
+  } else {
+    playWrongSound();
+  }
+  setTimeout(() => {
+    if (soloRunTimeLeft > 0) playNextSoloRunSong();
+  }, 400);
+}
+function endSoloRunMode() {
+  clearInterval(soloRunInterval);
+  clearTimeout(soloRunSongTimer);
+  soloAudioPlayer.pause();
+  soloDisc.classList.remove('spinning');
+  soloTimerWrap.classList.add('hidden');
+  soloAnswerGrid.classList.add('hidden');
+  soloFinalScore.textContent = `🏁 ¡Se acabó tu tiempo! Terminaste con ${soloScore} aciertos.`;
+  showScreen('solo-results');
+}
 function setupSoloRound() {
   soloAnswered = false;
   const round = soloRounds[soloIndex];
+  if (round.isProgressive) {
+    setupSoloProgressiveRound(round);
+    return;
+  }
+  soloProgressiveControls.classList.add('hidden');
   soloRoundCounter.textContent = `Ronda ${soloIndex + 1}/${soloRounds.length}`;
   soloReveal.classList.add('hidden');
   soloAnswerGrid.classList.remove('hidden');
@@ -398,6 +521,20 @@ function setupSoloRound() {
   soloDisc.classList.add('spinning');
   soloDiscArt.classList.add('hidden');
   soloStatusText.textContent = '🔊 ¡Escucha con atención!';
+  soloBet = false;
+  if (gameMode === 'bet') {
+    soloBetControls.classList.remove('hidden');
+    btnSoloPlaceBet.disabled = false;
+    btnSoloPlaceBet.textContent = '💰 Apostar doble o nada esta ronda';
+    btnSoloPlaceBet.onclick = () => {
+      if (soloAnswered) return;
+      soloBet = true;
+      btnSoloPlaceBet.disabled = true;
+      btnSoloPlaceBet.textContent = '💰 Apostado — doble si aciertas, -100 si fallas';
+    };
+  } else {
+    soloBetControls.classList.add('hidden');
+  }
 
   round.options.forEach((opt, i) => {
     const btn = document.createElement('button');
@@ -435,6 +572,7 @@ function submitSoloAnswer(optionIndex, correctIndex, round) {
   soloAudioPlayer.pause();
   soloDisc.classList.remove('spinning');
   soloTimerWrap.classList.add('hidden');
+  soloBetControls.classList.add('hidden');
   const buttons = soloAnswerGrid.querySelectorAll('.answer-btn');
   buttons.forEach((b, i) => {
     b.disabled = true;
@@ -442,21 +580,147 @@ function submitSoloAnswer(optionIndex, correctIndex, round) {
     else if (i === optionIndex) b.classList.add('wrong');
   });
   const correct = optionIndex === correctIndex;
-  if (correct) soloScore += 1;
-  soloScoreText.textContent = `Puntaje: ${soloScore}`;
+  let pointsText = '';
+  if (gameMode === 'bet') {
+    let pts;
+    if (correct) { pts = soloBet ? RANK_POINTS_START * 2 : RANK_POINTS_START; playCorrectSound(); }
+    else { pts = soloBet ? -RANK_POINTS_START : 0; playWrongSound(); }
+    soloScore = Math.max(0, soloScore + pts);
+    pointsText = ` (${pts >= 0 ? '+' : ''}${pts} pts)`;
+  } else {
+    if (correct) soloScore += 1;
+    if (correct) playCorrectSound(); else playWrongSound();
+  }
+  soloScoreText.textContent = gameMode === 'bet' ? `Puntaje: ${soloScore}` : `Puntaje: ${soloScore}`;
   soloAnswerGrid.classList.add('hidden');
   soloReveal.classList.remove('hidden');
-  soloRevealBanner.textContent = correct ? '✅ ¡Correcto!' : (optionIndex === -1 ? '⌛ Se acabó el tiempo' : '❌ Fallaste');
+  const baseMsg = correct ? '✅ ¡Correcto!' : (optionIndex === -1 ? '⌛ Se acabó el tiempo' : '❌ Fallaste');
+  soloRevealBanner.textContent = baseMsg + pointsText;
   soloRevealTitle.textContent = round.trackName;
   soloRevealArtist.textContent = round.trackArtist;
   if (round.trackImage) { soloRevealArt.src = round.trackImage; soloRevealArt.classList.remove('hidden'); }
   else soloRevealArt.classList.add('hidden');
   btnSoloNext.textContent = (soloIndex + 1 >= soloRounds.length) ? 'Ver resultado' : 'Siguiente canción';
 }
+// ---------- Modo Progresivo en solitario ----------
+let soloProgressiveStageIndex = 0;
+function setupSoloProgressiveRound(round) {
+  soloAnswered = false;
+  soloProgressiveStageIndex = 0;
+  soloRoundCounter.textContent = `Ronda ${soloIndex + 1}/${soloRounds.length}`;
+  soloReveal.classList.add('hidden');
+  soloAnswerGrid.classList.add('hidden');
+  soloProgressiveControls.classList.remove('hidden');
+  btnSoloManualPlay.classList.add('hidden');
+  soloTimerWrap.classList.add('hidden');
+  clearInterval(soloTimerInterval);
+  soloDisc.classList.add('spinning');
+  if (round.trackImage) {
+    soloDiscArt.src = round.trackImage;
+    soloDiscArt.classList.remove('hidden');
+    soloDiscArt.style.filter = 'blur(20px)';
+  } else {
+    soloDiscArt.classList.add('hidden');
+  }
+  soloProgressivePointsLabel.textContent = `Vale ${PROGRESSIVE_POINTS[0]} pts`;
+  soloProgressiveGuessInput.value = '';
+  soloProgressiveGuessInput.disabled = false;
+  btnSoloProgressiveGuess.disabled = false;
+  soloStatusText.textContent = '🔊 ¡Escucha!';
+
+  soloAudioPlayer.src = round.previewUrl;
+  soloAudioPlayer.load();
+  btnSoloManualPlay.onclick = () => { soloAudioPlayer.play().catch(() => {}); };
+  btnSoloProgressiveReplay.onclick = () => replaySoloProgressiveStage();
+  btnSoloProgressiveGuess.onclick = () => submitSoloProgressiveGuess(round);
+  soloProgressiveGuessInput.onkeydown = (e) => { if (e.key === 'Enter') submitSoloProgressiveGuess(round); };
+
+  soloAudioPlayer.currentTime = 0;
+  soloAudioPlayer.play().catch(() => { btnSoloManualPlay.classList.remove('hidden'); });
+  clearTimeout(localSnippetTimer);
+  scheduleSoloProgressivePause(0, PROGRESSIVE_STAGES[0]);
+  soloProgressiveGuessInput.focus();
+}
+function scheduleSoloProgressivePause(fromSeconds, toSeconds) {
+  clearTimeout(localSnippetTimer);
+  const ms = Math.max(0, (toSeconds - fromSeconds) * 1000);
+  localSnippetTimer = setTimeout(() => { soloAudioPlayer.pause(); }, ms);
+}
+function replaySoloProgressiveStage() {
+  if (soloAnswered) return;
+  soloAudioPlayer.currentTime = 0;
+  soloAudioPlayer.play().catch(() => {});
+  const isLastStage = soloProgressiveStageIndex >= PROGRESSIVE_STAGES.length - 1;
+  if (isLastStage) clearTimeout(localSnippetTimer);
+  else scheduleSoloProgressivePause(0, PROGRESSIVE_STAGES[soloProgressiveStageIndex]);
+}
+function advanceSoloProgressiveStage() {
+  if (soloAnswered) return;
+  if (soloProgressiveStageIndex >= PROGRESSIVE_STAGES.length - 1) return;
+  const fromSeconds = PROGRESSIVE_STAGES[soloProgressiveStageIndex];
+  soloProgressiveStageIndex += 1;
+  const isLastStage = soloProgressiveStageIndex >= PROGRESSIVE_STAGES.length - 1;
+  soloProgressivePointsLabel.textContent = `Vale ${PROGRESSIVE_POINTS[soloProgressiveStageIndex]} pts`;
+  if (!soloDiscArt.classList.contains('hidden')) {
+    const blurAmount = Math.max(0, 20 - soloProgressiveStageIndex * 5);
+    soloDiscArt.style.filter = `blur(${blurAmount}px)`;
+  }
+  playTickSound();
+  soloAudioPlayer.play().catch(() => {});
+  if (isLastStage) {
+    clearTimeout(localSnippetTimer);
+    soloStatusText.textContent = '🔊 Última oportunidad — suena hasta el final del fragmento.';
+  } else {
+    scheduleSoloProgressivePause(fromSeconds, PROGRESSIVE_STAGES[soloProgressiveStageIndex]);
+    soloStatusText.textContent = `No era esa — sigue escuchando (${PROGRESSIVE_STAGES[soloProgressiveStageIndex]}s)...`;
+  }
+}
+function submitSoloProgressiveGuess(round) {
+  if (soloAnswered) return;
+  const guess = soloProgressiveGuessInput.value.trim();
+  const correct = isGuessCorrect(guess, round.trackName);
+  if (correct) {
+    finishSoloProgressiveRound(true, round);
+    return;
+  }
+  soloProgressiveGuessInput.value = '';
+  const isLastStage = soloProgressiveStageIndex >= PROGRESSIVE_STAGES.length - 1;
+  if (isLastStage) {
+    finishSoloProgressiveRound(false, round);
+  } else {
+    playWrongSound();
+    advanceSoloProgressiveStage();
+    soloProgressiveGuessInput.focus();
+  }
+}
+function finishSoloProgressiveRound(correct, round) {
+  if (soloAnswered) return;
+  soloAnswered = true;
+  clearTimeout(localSnippetTimer);
+  soloAudioPlayer.pause();
+  soloDisc.classList.remove('spinning');
+  soloProgressiveGuessInput.disabled = true;
+  btnSoloProgressiveGuess.disabled = true;
+  const points = correct ? PROGRESSIVE_POINTS[soloProgressiveStageIndex] : 0;
+  if (correct) { soloScore += points; playCorrectSound(); } else { playWrongSound(); }
+  soloScoreText.textContent = `Puntaje: ${soloScore}`;
+  soloProgressiveControls.classList.add('hidden');
+  soloReveal.classList.remove('hidden');
+  soloRevealBanner.textContent = correct ? `✅ ¡Correcto! +${points} pts` : '❌ No la adivinaste';
+  soloRevealTitle.textContent = round.trackName;
+  soloRevealArtist.textContent = round.trackArtist;
+  if (round.trackImage) { soloRevealArt.src = round.trackImage; soloRevealArt.classList.remove('hidden'); }
+  else soloRevealArt.classList.add('hidden');
+  btnSoloNext.textContent = (soloIndex + 1 >= soloRounds.length) ? 'Ver resultado' : 'Siguiente canción';
+}
+function soloFinalScoreText() {
+  if (gameMode === 'progressive' || gameMode === 'bet') return `🎧 Terminaste con ${soloScore} puntos.`;
+  return `🎧 Terminaste con ${soloScore}/${soloRounds.length} aciertos.`;
+}
 btnSoloNext.onclick = () => {
   soloIndex += 1;
   if (soloIndex >= soloRounds.length) {
-    soloFinalScore.textContent = `🎧 Terminaste con ${soloScore}/${soloRounds.length} aciertos.`;
+    soloFinalScore.textContent = soloFinalScoreText();
     showScreen('solo-results');
   } else {
     setupSoloRound();
@@ -464,13 +728,21 @@ btnSoloNext.onclick = () => {
 };
 btnQuitSolo.onclick = () => {
   clearInterval(soloTimerInterval);
+  clearInterval(soloRunInterval);
   clearTimeout(localSnippetTimer);
+  clearTimeout(soloRunSongTimer);
   soloAudioPlayer.pause();
-  soloFinalScore.textContent = `🎧 Terminaste con ${soloScore}/${soloRounds.length} aciertos.`;
+  soloFinalScore.textContent = (soloRunMode === 'blitz' || soloRunMode === 'survival')
+    ? `🏁 Terminaste con ${soloScore} aciertos.`
+    : soloFinalScoreText();
+  soloRunMode = null;
   showScreen('solo-results');
 };
-btnSoloPlayAgain.onclick = () => startSoloGame();
-btnSoloNewSetup.onclick = () => showScreen('host-setup');
+btnSoloPlayAgain.onclick = () => {
+  if (gameMode === 'blitz' || gameMode === 'survival') startSoloRunMode(gameMode);
+  else startSoloGame();
+};
+btnSoloNewSetup.onclick = () => { soloRunMode = null; showScreen('host-setup'); };
 
 // ---------- Utilidades ----------
 function showScreen(id) {
@@ -599,6 +871,7 @@ async function redirectToSpotify() {
   const verifier = generateRandomString(64);
   sessionStorage.setItem('pkce_verifier', verifier);
   sessionStorage.setItem('rq_role', 'host');
+  sessionStorage.setItem('rq_entry_context', entryContext);
   const challenge = base64UrlEncode(await sha256(verifier));
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -793,6 +1066,7 @@ function extractPlaylistId(input) {
 playlistSelect.onchange = () => {
   const opt = playlistSelect.selectedOptions[0];
   if (!opt || !opt.value) return;
+  selectPlaylistSource();
   manualPlaylistId = opt.value;
   playlistUrlInput.value = opt.dataset.url || opt.value;
   playlistUrlStatus.classList.remove('hidden');
@@ -806,6 +1080,7 @@ btnUsePlaylistUrl.onclick = () => {
     playlistUrlStatus.textContent = 'No reconozco ese link. Cópialo desde "Compartir → Copiar link" en Spotify.';
     return;
   }
+  selectPlaylistSource();
   manualPlaylistId = id;
   playlistUrlStatus.textContent = 'Playlist lista para usar (se prioriza sobre la lista de arriba). Debe ser pública si no es tuya, o Spotify la rechazará con un error 403.';
 };
@@ -907,6 +1182,33 @@ function normalizeForMatch(str) {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
+function levenshteinDistance(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1];
+      else dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+// Compara lo que escribió la persona contra el título real, tolerando
+// pequeños errores de tipeo, acentos, mayúsculas, "feat.", etc. — no
+// exige una coincidencia exacta letra por letra.
+function isGuessCorrect(guess, correctName) {
+  const g = normalizeForMatch(guess);
+  const c = normalizeForMatch(correctName);
+  if (!g || !c) return false;
+  if (g === c) return true;
+  if (c.includes(g) && g.length >= Math.max(3, Math.floor(c.length * 0.6))) return true;
+  if (g.includes(c)) return true;
+  const dist = levenshteinDistance(g, c);
+  const threshold = Math.max(1, Math.floor(c.length * 0.25));
+  return dist <= threshold;
+}
 // Entre los resultados de iTunes, elige el que de verdad corresponde a
 // la canción y artista que buscamos — no solo el primero con audio.
 // Esto evita que, por ejemplo, buscar "Telescope" de un rapero termine
@@ -966,21 +1268,27 @@ async function findPreview(track) {
 }
 
 // ---------- Tabs de fuente ----------
-tabs.forEach(tab => {
-  tab.onclick = () => {
-    tabs.forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    selectedSource = tab.dataset.source;
-    document.getElementById('source-liked').classList.toggle('active', selectedSource === 'liked');
-    document.getElementById('source-playlist').classList.toggle('active', selectedSource === 'playlist');
-  };
-});
+// ---------- Fuente de canciones: chip "Mis Me Gusta" + selección de playlist ----------
+// selectedSource arranca en 'liked'. En cuanto la persona interactúa
+// con cualquier forma de elegir playlist (desplegable, link, buscador),
+// pasamos automáticamente a 'playlist' y se desmarca el chip.
+const sourceChipLiked = document.getElementById('source-chip-liked');
+function selectLikedSource() {
+  selectedSource = 'liked';
+  manualPlaylistId = null;
+  sourceChipLiked.classList.add('selected');
+}
+function selectPlaylistSource() {
+  selectedSource = 'playlist';
+  sourceChipLiked.classList.remove('selected');
+}
+sourceChipLiked.onclick = () => selectLikedSource();
 
 // ---------- Tabs de modo de juego ----------
 const MODE_HINTS = {
   normal: 'El primero en acertar se lleva 100 puntos, bajando hasta un piso de 50 para los siguientes.',
   sudden: 'Solo el primero en acertar cada canción se lleva 1 punto — nadie más suma esa ronda. Si al final hay empate, se juega una ronda extra solo entre los empatados.',
-  progressive: `Cada canción empieza sonando solo ${PROGRESSIVE_STAGES[0]}s. Si no la adivinas, dale a "Escuchar más" para que suene más — pero cada vez que escuchas más, bajan los puntos posibles (${PROGRESSIVE_POINTS.join(' → ')}).`,
+  progressive: `Modo de un jugador (no crea sala, sin esperar a nadie): escribes el nombre de la canción. Empieza sonando solo ${PROGRESSIVE_STAGES[0]}s; si fallas, pasa sola a los siguientes segundos (${PROGRESSIVE_STAGES.slice(1).join('s, ')}s) para seguir escuchando e intentar de nuevo — pero cada vez que avanza, bajan los puntos posibles (${PROGRESSIVE_POINTS.join(' → ')}).`,
   elimination: 'Puntaje normal por velocidad, pero cada cierto número de rondas el de menor puntaje queda eliminado (sigue mirando, ya no responde). Gana quien quede de último en pie.',
   bet: 'Antes de responder puedes apostar "doble o nada": si apuestas y aciertas, te llevas el DOBLE de puntos de esa ronda; si apuestas y fallas, pierdes 100 puntos de tu marcador. No apostar es la opción segura de siempre.',
   blitz: 'Todos corren contra el mismo reloj: adivina tantas canciones como puedas antes de que se acabe el tiempo. Cada jugador escucha a su propio ritmo — no espera a los demás.',
@@ -993,7 +1301,7 @@ modeTabs.forEach(tab => {
     tab.classList.add('active');
     gameMode = tab.dataset.mode;
     modeHint.textContent = MODE_HINTS[gameMode] || '';
-    btnCreateRoom.textContent = gameMode === 'solo' ? 'Empezar a practicar' : 'Crear sala';
+    btnCreateRoom.textContent = entryContext === 'solo' ? 'Empezar a practicar' : 'Crear sala';
     const isRunMode = gameMode === 'blitz' || gameMode === 'survival';
     document.getElementById('snippet-field').style.display = (gameMode === 'progressive' || isRunMode) ? 'none' : '';
     document.getElementById('rounds-select').closest('.field-group').style.display = isRunMode ? 'none' : '';
@@ -1023,6 +1331,7 @@ async function runPlaylistSearch(offset) {
       const ownerName = (p.owner && p.owner.display_name) || 'alguien';
       chip.textContent = `${p.name} — de ${ownerName} (${(p.tracks && p.tracks.total) || '?'} canciones)`;
       chip.onclick = () => {
+        selectPlaylistSource();
         manualPlaylistId = p.id;
         playlistUrlInput.value = (p.external_urls && p.external_urls.spotify) || p.id;
         playlistUrlStatus.classList.remove('hidden');
@@ -1162,7 +1471,8 @@ btnCreateRoom.onclick = async () => {
     setupStatus.textContent = 'Elige una playlist o pega un link.';
     return;
   }
-  if (gameMode !== 'solo' && !initFirebase()) {
+  const isSoloFlow = entryContext === 'solo';
+  if (!isSoloFlow && !initFirebase()) {
     setupStatus.textContent = 'Falta configurar Firebase en app.js (ver instrucciones arriba del archivo).';
     return;
   }
@@ -1173,8 +1483,12 @@ btnCreateRoom.onclick = async () => {
   try {
     await buildPreviewPoolFromSource();
 
-    if (gameMode === 'solo') {
-      startSoloGame();
+    if (isSoloFlow) {
+      if (gameMode === 'blitz' || gameMode === 'survival') {
+        startSoloRunMode(gameMode);
+      } else {
+        startSoloGame();
+      }
       return;
     }
 
@@ -2208,8 +2522,31 @@ btnPlayerBackJoin.onclick = leaveRoom;
 btnLeaveLobby.onclick = leaveRoom;
 
 // ---------- Navegación de rol ----------
-btnRoleHost.onclick = () => showScreen('login');
+btnRoleSolo.onclick = () => { entryContext = 'solo'; showScreen('login'); };
+btnRoleHost.onclick = () => { entryContext = 'multiplayer'; showScreen('login'); };
 btnRolePlayer.onclick = () => { initFirebase(); showScreen('player-join'); };
+// Muestra solo los modos de juego que tienen sentido según por dónde
+// entró (Solo: modos de un jugador; Multijugador: modos de sala). Si
+// el modo que estaba activo ya no aplica en este contexto, vuelve a
+// "Normal" por defecto.
+function applyModeTabsForContext() {
+  modeTabs.forEach(tab => {
+    const contexts = (tab.dataset.context || '').split(' ');
+    tab.style.display = contexts.includes(entryContext) ? '' : 'none';
+  });
+  const activeTab = document.querySelector('.mode-tab.active');
+  if (!activeTab || activeTab.style.display === 'none') {
+    modeTabs.forEach(t => t.classList.remove('active'));
+    const normalTab = document.querySelector('.mode-tab[data-mode="normal"]');
+    if (normalTab) normalTab.classList.add('active');
+    gameMode = 'normal';
+    modeHint.textContent = MODE_HINTS.normal;
+    eliminationField.classList.add('hidden');
+    blitzField.classList.add('hidden');
+    survivalField.classList.add('hidden');
+  }
+  btnCreateRoom.textContent = entryContext === 'solo' ? 'Empezar a practicar' : 'Crear sala';
+}
 btnBackRoleLogin.onclick = () => showScreen('role');
 btnBackRolePlayer.onclick = () => showScreen('role');
 
@@ -2224,8 +2561,10 @@ btnLogout.onclick = logout;
 (async function init() {
   initFirebase();
   const wasHostLogin = sessionStorage.getItem('rq_role') === 'host';
+  entryContext = sessionStorage.getItem('rq_entry_context') || 'multiplayer';
   const loggedIn = wasHostLogin ? await handleRedirectIfPresent() : false;
   if (loggedIn) {
+    applyModeTabsForContext();
     showScreen('host-setup');
     // La carga automática de la lista de playlists está desactivada
     // por ahora (bug activo de Spotify, ver README) — usa el botón

@@ -23,10 +23,11 @@
       <div class="disc__label"></div>
     </div>
     <h1 class="title">RolaElQuiz</h1>
-    <p class="subtitle">Adivina canciones de Spotify con tus amigos, aunque estén en otro país.</p>
-    <button id="btn-role-host" class="btn btn--primary btn--wide">Soy el anfitrión (conecto Spotify)</button>
-    <button id="btn-role-player" class="btn btn--ghost btn--wide">Soy jugador (me uno con un código)</button>
-    <p class="fineprint">Solo el anfitrión necesita cuenta de Spotify. Los jugadores solo necesitan el código de la sala.</p>
+    <p class="subtitle">Adivina canciones de Spotify — solo o con amigos.</p>
+    <button id="btn-role-solo" class="btn btn--primary btn--wide">🎧 Modo Solo (practicar)</button>
+    <button id="btn-role-host" class="btn btn--ghost btn--wide">🎉 Multijugador (crear sala)</button>
+    <button id="btn-role-player" class="btn btn--ghost btn--wide">🔑 Unirme a una sala</button>
+    <p class="fineprint">Solo, y quien crea la sala, necesitan conectar Spotify. Para unirte a una sala de un amigo solo hace falta el código.</p>
   </section>
 
   <!-- PANTALLA: LOGIN (solo anfitrión) -->
@@ -50,52 +51,45 @@
 
     <div class="field-group">
       <span class="field-label">Fuente de canciones</span>
-      <div class="tabs" role="tablist">
-        <button class="tab active" data-source="liked">Mis Me Gusta</button>
-        <button class="tab" data-source="playlist">Una playlist</button>
+      <div class="chips chips--selectable">
+        <div id="source-chip-liked" class="chip selected">🎵 Mis Me Gusta</div>
       </div>
+      <p class="hint">Con "Mis Me Gusta" seleccionado se usan tus canciones guardadas en Spotify. O elige, pega, o busca una playlist abajo (al hacerlo, se usa esa en vez de "Me Gusta"):</p>
 
-      <div id="source-liked" class="source-panel active">
-        <p class="hint">Se usarán tus canciones guardadas ("Me Gusta") en Spotify.</p>
+      <div class="row-inline">
+        <select id="playlist-select" class="select">
+          <option value="">Sin cargar — usa 🔄, el buscador, o pega el link</option>
+        </select>
+        <button id="btn-reload-playlists" class="btn btn--ghost btn--icon" title="Recargar lista">🔄</button>
       </div>
+      <p id="playlist-count-status" class="hint"></p>
+      <p class="hint">Aquí también aparece cualquier Blend que hayas creado — se lee como una playlist normal.</p>
 
-      <div id="source-playlist" class="source-panel">
-        <div class="row-inline">
-          <select id="playlist-select" class="select">
-            <option value="">Sin cargar — usa 🔄, el buscador, o pega el link</option>
-          </select>
-          <button id="btn-reload-playlists" class="btn btn--ghost btn--icon" title="Recargar lista">🔄</button>
-        </div>
-        <p id="playlist-count-status" class="hint"></p>
-        <p class="hint">Aquí también aparece cualquier Blend que hayas creado — se lee como una playlist normal.</p>
-
-        <p class="hint" style="margin-top:14px;">¿No la ves en la lista, o es de otra cuenta? Pega el link aquí (debe ser pública):</p>
-        <div class="add-player">
-          <input id="playlist-url-input" type="text" placeholder="https://open.spotify.com/playlist/..." />
-          <button id="btn-use-playlist-url" class="btn btn--ghost">Usar</button>
-        </div>
-        <p id="playlist-url-status" class="hint hidden"></p>
-
-        <p class="hint" style="margin-top:14px;">O búscala por nombre — <strong>ojo:</strong> este buscador solo encuentra playlists PÚBLICAS del catálogo de Spotify (no tu biblioteca privada ni tus Blends), y aun encontrándola solo la vas a poder usar si es tuya o si colaboras en ella:</p>
-        <div class="add-player">
-          <input id="playlist-search-input" type="text" placeholder="Nombre de la playlist…" />
-          <button id="btn-search-playlists" class="btn btn--ghost">Buscar</button>
-        </div>
-        <div id="playlist-search-results" class="chips chips--selectable"></div>
+      <p class="hint" style="margin-top:14px;">¿No la ves en la lista, o es de otra cuenta? Pega el link aquí (debe ser pública):</p>
+      <div class="add-player">
+        <input id="playlist-url-input" type="text" placeholder="https://open.spotify.com/playlist/..." />
+        <button id="btn-use-playlist-url" class="btn btn--ghost">Usar</button>
       </div>
+      <p id="playlist-url-status" class="hint hidden"></p>
+
+      <p class="hint" style="margin-top:14px;">O búscala por nombre — <strong>ojo:</strong> este buscador solo encuentra playlists PÚBLICAS del catálogo de Spotify (no tu biblioteca privada ni tus Blends), y aun encontrándola solo la vas a poder usar si es tuya o si colaboras en ella:</p>
+      <div class="add-player">
+        <input id="playlist-search-input" type="text" placeholder="Nombre de la playlist…" />
+        <button id="btn-search-playlists" class="btn btn--ghost">Buscar</button>
+      </div>
+      <div id="playlist-search-results" class="chips chips--selectable"></div>
     </div>
 
     <div class="field-group">
       <span class="field-label">Modo de juego</span>
       <div class="tabs tabs--grid4" role="tablist">
-        <button class="tab mode-tab active" data-mode="normal">Normal (puntos por velocidad)</button>
-        <button class="tab mode-tab" data-mode="sudden">Muerte súbita</button>
-        <button class="tab mode-tab" data-mode="progressive">Progresivo (1s, 3s, 6s…)</button>
-        <button class="tab mode-tab" data-mode="elimination">Eliminación</button>
-        <button class="tab mode-tab" data-mode="bet">Apuesta doble o nada</button>
-        <button class="tab mode-tab" data-mode="blitz">Contrarreloj (cuántas puedas)</button>
-        <button class="tab mode-tab" data-mode="survival">Supervivencia (el reloj baja)</button>
-        <button class="tab mode-tab" data-mode="solo">Solo (practicar sin sala)</button>
+        <button class="tab mode-tab active" data-mode="normal" data-context="solo multiplayer">Normal (puntos por velocidad)</button>
+        <button class="tab mode-tab" data-mode="sudden" data-context="multiplayer">Muerte súbita</button>
+        <button class="tab mode-tab" data-mode="progressive" data-context="solo">Progresivo (1s, 3s, 6s…)</button>
+        <button class="tab mode-tab" data-mode="elimination" data-context="multiplayer">Eliminación</button>
+        <button class="tab mode-tab" data-mode="bet" data-context="solo multiplayer">Apuesta doble o nada</button>
+        <button class="tab mode-tab" data-mode="blitz" data-context="solo multiplayer">Contrarreloj (cuántas puedas)</button>
+        <button class="tab mode-tab" data-mode="survival" data-context="solo multiplayer">Supervivencia (el reloj baja)</button>
       </div>
       <p id="mode-hint" class="hint">El primero en acertar se lleva 100 puntos, bajando hasta un piso de 50 para los siguientes.</p>
       <div id="elimination-field" class="field-group field-group--inline hidden">
@@ -188,7 +182,20 @@
     <p id="solo-score-text" class="hint" style="text-align:center;">Puntaje: 0</p>
     <button id="btn-solo-manual-play" class="btn btn--ghost hidden">🔊 ¿No escuchas nada? Toca aquí</button>
 
+    <div id="solo-bet-controls" class="hidden" style="width:100%;">
+      <button id="btn-solo-place-bet" class="btn btn--ghost btn--wide">💰 Apostar doble o nada esta ronda</button>
+    </div>
+
     <div id="solo-answer-grid" class="answer-grid"></div>
+
+    <div id="solo-progressive-controls" class="hidden" style="width:100%;">
+      <p id="solo-progressive-points-label" class="points-label">Vale 100 pts</p>
+      <button id="btn-solo-progressive-replay" class="btn btn--ghost">▶ Escuchar de nuevo</button>
+      <div class="add-player">
+        <input id="solo-progressive-guess-input" type="text" placeholder="Escribe el nombre de la canción..." />
+        <button id="btn-solo-progressive-guess" class="btn btn--primary">Adivinar</button>
+      </div>
+    </div>
 
     <div id="solo-reveal" class="reveal-card hidden">
       <p id="solo-reveal-banner" class="reveal-banner"></p>
