@@ -83,6 +83,13 @@ const PROGRESSIVE_POINTS = [100, 80, 50, 25, 10];
 // todos los "escuchar más" y sigue sin saberla, al menos tiene la
 // canción completa para intentarlo, con el puntaje mínimo como precio.
 const PROGRESSIVE_ROUND_BUDGET_SECS = 35;
+// Actualiza la etiqueta del botón de modo con los valores reales de
+// arriba, para que nunca vuelva a quedar desactualizada si se
+// cambian los tiempos.
+(function updateProgressiveTabLabel() {
+  const tab = document.querySelector('.mode-tab[data-mode="progressive"]');
+  if (tab) tab.textContent = `Progresivo (${PROGRESSIVE_STAGES.slice(0, 3).join('s, ')}s…)`;
+})();
 
 const PLAYER_EMOJIS = ['🦊', '🐼', '🐸', '🐵', '🦁', '🐨', '🐯', '🦄', '🐙', '🦖', '🐳', '🦋', '🐺', '🦉', '🐝'];
 function pickPlayerEmoji() {
