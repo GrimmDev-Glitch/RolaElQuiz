@@ -192,9 +192,10 @@ por "Multijugador":
 
   No hace falta escribir el nombre exacto letra por letra — tolera
   mayúsculas/acentos, "feat.", y pequeños errores de tipeo. Mientras
-  escribes (el nombre de la canción o el del artista), el navegador
-  sugiere coincidencias en un desplegable nativo para que le des
-  clic en vez de escribir todo. La portada del álbum se ve borrosa
+  escribes (el nombre de la canción o el del artista), aparecen
+  sugerencias de **todo el catálogo de iTunes** (no solo de tu
+  playlist) para que le des clic en vez de escribir todo — así no es
+  trivial adivinar por descarte viendo qué aparece en la lista. La portada del álbum se ve borrosa
   al principio y se va aclarando en cada avance, como pista visual
   extra. Después de la última etapa (10s) se deja sonar el resto del
   fragmento completo en vez de cortarlo en seco, por si todavía no
@@ -278,6 +279,11 @@ celular esté perfectamente sincronizado.
 - El inicio de sesión del anfitrión dura ~1 hora; si la partida se
   alarga mucho, puede que tenga que reconectar (y crear una sala
   nueva, ya que el código vive en su navegador).
+- **Contrarreloj y Supervivencia** arman un pool de hasta 40
+  canciones verificadas (antes buscaba hasta 120, lo cual era
+  innecesariamente lento) y las va reordenando al azar cada vez que
+  se completa una vuelta — así, si tu playlist es chica y alcanzas a
+  escuchar todas, no vuelven a sonar en el mismo orden que antes.
 - No todas las canciones tienen un preview disponible en iTunes — la
   app busca de más para compensar las que no encuentra; hacen falta
   al menos 4 canciones con audio para poder armar las opciones. Desde

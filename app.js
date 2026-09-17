@@ -410,11 +410,13 @@ let soloRunInterval = null;
 let soloRunSongTimer = null;
 let soloRunAnswered = false;
 let soloRunQueueIndex = 0;
+let soloRunShuffledQueue = [];
 const SOLO_RUN_SNIPPET_SECS = 6;
 function startSoloRunMode(mode) {
   soloRunMode = mode;
   soloRounds = Object.values(buildRoundsFromPool());
   soloRunQueueIndex = 0;
+  soloRunShuffledQueue = [];
   soloScore = 0;
   soloRunAnswered = false;
   soloRunTimeLeft = mode === 'survival' ? (parseInt(survivalStartSelect.value, 10) || 15) : (parseInt(blitzSecondsSelect.value, 10) || 60);
@@ -450,7 +452,10 @@ function startSoloRunClock() {
 function playNextSoloRunSong() {
   if (soloRunTimeLeft <= 0) return;
   soloRunAnswered = false;
-  const round = soloRounds[soloRunQueueIndex % soloRounds.length];
+  if (soloRunShuffledQueue.length === 0) {
+    soloRunShuffledQueue = shuffle(soloRounds);
+  }
+  const round = soloRunShuffledQueue.pop();
   soloRunQueueIndex += 1;
 
   soloAnswerGrid.classList.remove('hidden');
@@ -615,20 +620,41 @@ let soloProgressiveStageIndex = 0;
 // Llena el <datalist> de sugerencias del modo progresivo con "Artista -
 // Canción" de cada canción del pool — así al escribir el nombre de la
 // canción O el del artista, el navegador sugiere coincidencias.
-function populateProgressiveDatalist() {
-  const datalist = document.getElementById('solo-progressive-song-list');
-  if (!datalist) return;
-  datalist.innerHTML = '';
-  const seen = new Set();
-  previewPool.forEach(t => {
-    const label = `${(t.artists && t.artists[0]) || ''} - ${t.name}`;
-    if (seen.has(label)) return;
-    seen.add(label);
-    const opt = document.createElement('option');
-    opt.value = label;
-    datalist.appendChild(opt);
+// Autocompletado del modo progresivo: busca EN VIVO en el catálogo
+// general de iTunes mientras escribes (no solo en tu playlist) — si
+// solo sugiriera canciones de tu propio pool, adivinar sería trivial
+// por descarte (ej. si solo hay una canción con "michael" en tu
+// playlist, escribir eso ya delataría la respuesta). Con espera
+// (debounce) y throttle para no saturar a iTunes.
+let progressiveAutocompleteTimer = null;
+function wireProgressiveAutocomplete(inputEl, datalistId) {
+  inputEl.addEventListener('input', () => {
+    clearTimeout(progressiveAutocompleteTimer);
+    const q = inputEl.value.trim();
+    if (q.length < 2) return;
+    progressiveAutocompleteTimer = setTimeout(async () => {
+      // Si ya escribiste algo distinto mientras esperábamos, no sigas.
+      if (inputEl.value.trim() !== q) return;
+      await throttleItunes();
+      const data = await itunesSearch(q);
+      if (inputEl.value.trim() !== q) return; // pudo cambiar durante la búsqueda
+      const datalist = document.getElementById(datalistId);
+      if (!datalist || !data || !data.results) return;
+      datalist.innerHTML = '';
+      const seen = new Set();
+      data.results.forEach(r => {
+        if (!r.trackName || !r.artistName) return;
+        const label = `${r.artistName} - ${r.trackName}`;
+        if (seen.has(label)) return;
+        seen.add(label);
+        const opt = document.createElement('option');
+        opt.value = label;
+        datalist.appendChild(opt);
+      });
+    }, 350);
   });
 }
+wireProgressiveAutocomplete(soloProgressiveGuessInput, 'solo-progressive-song-list');
 function setupSoloProgressiveRound(round) {
   soloAnswered = false;
   soloProgressiveStageIndex = 0;
@@ -1467,7 +1493,14 @@ async function buildPreviewPoolFromSource() {
   }
   normalized = shuffle(normalized);
 
-  const target = Math.max(roundsCount * 2, Math.min(normalized.length, 30));
+  const isRunModeBuild = gameMode === 'blitz' || gameMode === 'survival';
+  // Para Contrarreloj/Supervivencia no hace falta un pool gigante —
+  // se reordena solo cada vez que se completa una vuelta (ver más
+  // abajo), así que con ~40 canciones bien verificadas alcanza y
+  // carga mucho más rápido que buscar 120.
+  const target = isRunModeBuild
+    ? Math.min(normalized.length, 40)
+    : Math.max(roundsCount * 2, Math.min(normalized.length, 30));
   previewPool = [];
   let checked = 0;
   let consecutiveMisses = 0;
@@ -1495,7 +1528,6 @@ async function buildPreviewPoolFromSource() {
     throw new Error('No se encontró suficiente audio (mínimo 4 canciones). Prueba con otra playlist.');
   }
   if (previewPool.length < roundsCount) roundsCount = previewPool.length;
-  populateProgressiveDatalist();
 }
 
 // ---------- Crear sala (anfitrión) ----------
@@ -1511,7 +1543,7 @@ btnCreateRoom.onclick = async () => {
   }
   btnCreateRoom.disabled = true;
   const isRunMode = gameMode === 'blitz' || gameMode === 'survival';
-  roundsCount = isRunMode ? 60 : parseInt(roundsSelect.value, 10);
+  roundsCount = isRunMode ? 40 : parseInt(roundsSelect.value, 10);
   snippetLength = parseInt(snippetSelect.value, 10);
   try {
     await buildPreviewPoolFromSource();
@@ -2331,10 +2363,12 @@ let runTimeLeft = 0;
 let runInterval = null;
 let runSongTimer = null;
 let runAnswered = false;
+let runShuffledQueue = [];
 const RUN_SNIPPET_SECS = 6;
 
 function startPlayerRun(room) {
   runQueueIndex = 0;
+  runShuffledQueue = [];
   runScore = 0;
   runAnswered = false;
   const mode = room.settings.mode;
@@ -2377,9 +2411,16 @@ function startRunClock(room, mode) {
 function playNextRunSong(room) {
   if (runTimeLeft <= 0) return;
   runAnswered = false;
-  const rounds = Object.values(room.rounds || {});
-  if (!rounds.length) return;
-  const round = rounds[runQueueIndex % rounds.length];
+  const allRounds = Object.values(room.rounds || {});
+  if (!allRounds.length) return;
+  // Cola barajada que se agota antes de repetir cualquier canción, y
+  // se vuelve a barajar de cero (con un orden distinto) cada vez que
+  // se completa una vuelta — así nunca suena en el mismo orden dos
+  // veces seguidas.
+  if (runShuffledQueue.length === 0) {
+    runShuffledQueue = shuffle(allRounds);
+  }
+  const round = runShuffledQueue.pop();
   runQueueIndex += 1;
 
   playerAnswerGrid.classList.remove('hidden');
