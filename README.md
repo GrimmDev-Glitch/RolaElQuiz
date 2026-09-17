@@ -184,11 +184,11 @@ por "Multijugador":
 
   | Escuchaste hasta... | Vale si aciertas |
   |---|---|
-  | 1 segundo | 100 pts |
-  | 3 segundos | 80 pts |
-  | 6 segundos | 60 pts |
-  | 10 segundos | 40 pts |
-  | 15 segundos | 20 pts |
+  | 0.1 segundos | 100 pts |
+  | 0.5 segundos | 80 pts |
+  | 2 segundos | 50 pts |
+  | 8 segundos | 25 pts |
+  | 10 segundos | 10 pts |
 
   No hace falta escribir el nombre exacto letra por letra — tolera
   mayúsculas/acentos, "feat.", y pequeños errores de tipeo. Mientras
@@ -196,7 +196,7 @@ por "Multijugador":
   sugiere coincidencias en un desplegable nativo para que le des
   clic en vez de escribir todo. La portada del álbum se ve borrosa
   al principio y se va aclarando en cada avance, como pista visual
-  extra. Después de la última etapa (15s) se deja sonar el resto del
+  extra. Después de la última etapa (10s) se deja sonar el resto del
   fragmento completo en vez de cortarlo en seco, por si todavía no
   la reconoces. También hay dos botones más: "▶ Escuchar de nuevo"
   para repetir la duración actual sin avanzar de etapa (no baja los

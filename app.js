@@ -76,8 +76,8 @@ function computeRankPoints(rank) {
 // Modo progresivo: cada canción empieza sonando 1 segundo; cada vez que
 // el jugador le da "escuchar más" avanza a la siguiente etapa (y baja
 // el puntaje posible que puede ganar si acierta).
-const PROGRESSIVE_STAGES = [1, 3, 6, 10, 15]; // segundos acumulados desde el inicio
-const PROGRESSIVE_POINTS = [100, 80, 60, 40, 20];
+const PROGRESSIVE_STAGES = [0.1, 0.5, 2, 8, 10]; // segundos acumulados desde el inicio
+const PROGRESSIVE_POINTS = [100, 80, 50, 25, 10];
 // Después de la última etapa (15s) se deja sonar el resto del preview
 // completo (hasta ~30s) en vez de cortarlo en seco — así quien ya usó
 // todos los "escuchar más" y sigue sin saberla, al menos tiene la
