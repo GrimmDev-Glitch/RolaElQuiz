@@ -364,6 +364,7 @@ const btnSoloPlaceBet = document.getElementById('btn-solo-place-bet');
 const soloProgressiveControls = document.getElementById('solo-progressive-controls');
 const soloProgressivePointsLabel = document.getElementById('solo-progressive-points-label');
 const btnSoloProgressiveReplay = document.getElementById('btn-solo-progressive-replay');
+const btnSoloProgressiveSkip = document.getElementById('btn-solo-progressive-skip');
 const soloProgressiveGuessInput = document.getElementById('solo-progressive-guess-input');
 const btnSoloProgressiveGuess = document.getElementById('btn-solo-progressive-guess');
 const soloReveal = document.getElementById('solo-reveal');
@@ -604,6 +605,23 @@ function submitSoloAnswer(optionIndex, correctIndex, round) {
 }
 // ---------- Modo Progresivo en solitario ----------
 let soloProgressiveStageIndex = 0;
+// Llena el <datalist> de sugerencias del modo progresivo con "Artista -
+// Canción" de cada canción del pool — así al escribir el nombre de la
+// canción O el del artista, el navegador sugiere coincidencias.
+function populateProgressiveDatalist() {
+  const datalist = document.getElementById('solo-progressive-song-list');
+  if (!datalist) return;
+  datalist.innerHTML = '';
+  const seen = new Set();
+  previewPool.forEach(t => {
+    const label = `${(t.artists && t.artists[0]) || ''} - ${t.name}`;
+    if (seen.has(label)) return;
+    seen.add(label);
+    const opt = document.createElement('option');
+    opt.value = label;
+    datalist.appendChild(opt);
+  });
+}
 function setupSoloProgressiveRound(round) {
   soloAnswered = false;
   soloProgressiveStageIndex = 0;
@@ -626,12 +644,18 @@ function setupSoloProgressiveRound(round) {
   soloProgressiveGuessInput.value = '';
   soloProgressiveGuessInput.disabled = false;
   btnSoloProgressiveGuess.disabled = false;
+  btnSoloProgressiveSkip.classList.remove('hidden');
   soloStatusText.textContent = '🔊 ¡Escucha!';
 
   soloAudioPlayer.src = round.previewUrl;
   soloAudioPlayer.load();
   btnSoloManualPlay.onclick = () => { soloAudioPlayer.play().catch(() => {}); };
   btnSoloProgressiveReplay.onclick = () => replaySoloProgressiveStage();
+  btnSoloProgressiveSkip.onclick = () => {
+    soloProgressiveGuessInput.value = '';
+    advanceSoloProgressiveStage();
+    soloProgressiveGuessInput.focus();
+  };
   btnSoloProgressiveGuess.onclick = () => submitSoloProgressiveGuess(round);
   soloProgressiveGuessInput.onkeydown = (e) => { if (e.key === 'Enter') submitSoloProgressiveGuess(round); };
 
@@ -670,6 +694,7 @@ function advanceSoloProgressiveStage() {
   if (isLastStage) {
     clearTimeout(localSnippetTimer);
     soloStatusText.textContent = '🔊 Última oportunidad — suena hasta el final del fragmento.';
+    btnSoloProgressiveSkip.classList.add('hidden');
   } else {
     scheduleSoloProgressivePause(fromSeconds, PROGRESSIVE_STAGES[soloProgressiveStageIndex]);
     soloStatusText.textContent = `No era esa — sigue escuchando (${PROGRESSIVE_STAGES[soloProgressiveStageIndex]}s)...`;
@@ -1463,6 +1488,7 @@ async function buildPreviewPoolFromSource() {
     throw new Error('No se encontró suficiente audio (mínimo 4 canciones). Prueba con otra playlist.');
   }
   if (previewPool.length < roundsCount) roundsCount = previewPool.length;
+  populateProgressiveDatalist();
 }
 
 // ---------- Crear sala (anfitrión) ----------

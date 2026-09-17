@@ -191,14 +191,18 @@ por "Multijugador":
   | 15 segundos | 20 pts |
 
   No hace falta escribir el nombre exacto letra por letra — tolera
-  mayúsculas/acentos, "feat.", y pequeños errores de tipeo. La
-  portada del álbum se ve borrosa al principio y se va aclarando en
-  cada avance, como pista visual extra. Después de la última etapa
-  (15s) se deja sonar el resto del fragmento completo en vez de
-  cortarlo en seco, por si todavía no la reconoces. También hay un
-  botón "▶ Escuchar de nuevo" para repetir la duración actual sin
-  avanzar de etapa (no baja los puntos, solo te deja volver a oír lo
-  mismo).
+  mayúsculas/acentos, "feat.", y pequeños errores de tipeo. Mientras
+  escribes (el nombre de la canción o el del artista), el navegador
+  sugiere coincidencias en un desplegable nativo para que le des
+  clic en vez de escribir todo. La portada del álbum se ve borrosa
+  al principio y se va aclarando en cada avance, como pista visual
+  extra. Después de la última etapa (15s) se deja sonar el resto del
+  fragmento completo en vez de cortarlo en seco, por si todavía no
+  la reconoces. También hay dos botones más: "▶ Escuchar de nuevo"
+  para repetir la duración actual sin avanzar de etapa (no baja los
+  puntos), y "⏭ Saltar" para pasar directo a la siguiente duración
+  sin necesidad de escribir un intento fallido primero (sí baja los
+  puntos, como si hubieras fallado).
 - **Eliminación** — puntaje normal por velocidad, pero cada cierto
   número de rondas (elegible: cada 2, 3 o 4) el jugador con menos
   puntos entre los que siguen en pie queda eliminado — puede seguir

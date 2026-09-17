@@ -191,10 +191,12 @@
     <div id="solo-progressive-controls" class="hidden" style="width:100%;">
       <p id="solo-progressive-points-label" class="points-label">Vale 100 pts</p>
       <button id="btn-solo-progressive-replay" class="btn btn--ghost">▶ Escuchar de nuevo</button>
+      <button id="btn-solo-progressive-skip" class="btn btn--ghost btn--wide">⏭ Saltar (bajan los puntos, escuchas más)</button>
       <div class="add-player">
-        <input id="solo-progressive-guess-input" type="text" placeholder="Escribe el nombre de la canción..." />
+        <input id="solo-progressive-guess-input" type="text" placeholder="Escribe el nombre de la canción o el artista..." list="solo-progressive-song-list" autocomplete="off" />
         <button id="btn-solo-progressive-guess" class="btn btn--primary">Adivinar</button>
       </div>
+      <datalist id="solo-progressive-song-list"></datalist>
     </div>
 
     <div id="solo-reveal" class="reveal-card hidden">
